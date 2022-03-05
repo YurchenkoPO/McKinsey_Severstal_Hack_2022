@@ -1,0 +1,1 @@
+# McKinsey_Severstal_Hack_2022
