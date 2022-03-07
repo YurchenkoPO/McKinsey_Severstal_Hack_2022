@@ -127,6 +127,7 @@ factors_2021 = [
 ]
 
 
+
 #df_2019 = pd.read_csv('./agents2019.csv')
 #df_2020 = pd.read_csv('./agents2020.csv')
 #df_2021 = pd.read_csv('./agents2021.csv')
@@ -147,3 +148,198 @@ def create_df_2years_known():
     df_2_years_known = df_2_years_known.join(info_2020)
     
     return df_2_years_known
+
+
+
+def create_df_0years_known(drop_unnecessary=True):
+    """
+    drop_unnecessary: whether to drop targets other than binary PDZ
+    """
+    dataframes = []
+    file_path = Path(__file__)
+    
+    current_year = 2019
+    df_0years_known = pd.read_csv(file_path.parent.parent / 'raw/agents2019.csv')
+    df_0years_known['year'] = str(current_year)
+    df_0years_known.drop(columns=['Unnamed: 0',], inplace=True)
+    financial_report_columns_renaming = {x :f'{int(x[:4]) - current_year}' + x[4:] 
+                                         for x in financial_report_columns}
+    df_0years_known.rename(columns=financial_report_columns_renaming, inplace=True)
+    df_0years_known['binary_target'] = df_0years_known['Кол-во раз ПДЗ за 2019 год, шт.'] != 0
+    
+    if drop_unnecessary:
+        columns_to_drop = [
+            'Макс. ПДЗ за 2019 год, дней',
+            'Сред. ПДЗ за 2019 год, дней',
+            'Кол-во просрочек свыше 5-ти дней за 2019 год, шт.',
+            'Общая сумма ПДЗ свыше 5-ти дней за 2019 год, руб.',
+            'Кол-во раз ПДЗ за 2019 год, шт.',
+        ]
+        df_0years_known.drop(columns=columns_to_drop, inplace=True)
+    
+    dataframes.append(df_0years_known.copy())
+        
+    
+    current_year = 2020
+    df_0years_known = pd.read_csv(file_path.parent.parent / 'raw/agents2020.csv')
+    df_0years_known['year'] = str(current_year)
+    financial_report_columns_renaming = {x :f'{int(x[:4]) - current_year}' + x[4:] 
+                                         for x in financial_report_columns}
+    df_0years_known.rename(columns=financial_report_columns_renaming, inplace=True)
+    df_0years_known['binary_target'] = df_0years_known['Кол-во раз ПДЗ за 2020 год, шт.'] != 0
+    
+    if drop_unnecessary:
+        columns_to_drop = [
+            'Макс. ПДЗ за 2020 год, дней',
+            'Сред. ПДЗ за 2020 год, дней',
+            'Кол-во просрочек свыше 5-ти дней за 2020 год, шт.',
+            'Общая сумма ПДЗ свыше 5-ти дней за 2020 год, руб.',
+            'Кол-во раз ПДЗ за 2020 год, шт.',
+        ]
+        df_0years_known.drop(columns=columns_to_drop, inplace=True)
+    
+    dataframes.append(df_0years_known.copy())
+    
+    
+    current_year = 2021
+    df_0years_known = pd.read_csv(file_path.parent.parent / 'raw/agents2021.csv')
+    df_0years_known['year'] = str(current_year)
+
+    columns_to_drop = [
+        'Unnamed: 0', 
+        'Макс. ПДЗ за 2019 год, дней',
+        'Сред. ПДЗ за 2019 год, дней',
+        'Кол-во просрочек свыше 5-ти дней за 2019 год, шт.',
+        'Общая сумма ПДЗ свыше 5-ти дней за 2019 год, руб.',
+        'Кол-во раз ПДЗ за 2019 год, шт.',
+        'Макс. ПДЗ за 2020 год, дней',
+        'Сред. ПДЗ за 2020 год, дней',
+        'Кол-во просрочек свыше 5-ти дней за 2020 год, шт.',
+        'Общая сумма ПДЗ свыше 5-ти дней за 2020 год, руб.',
+        'Кол-во раз ПДЗ за 2020 год, шт.',
+    ]
+    df_0years_known.drop(columns=columns_to_drop, inplace=True)
+
+    financial_report_columns_renaming = {x :f'{int(x[:4]) - current_year}' + x[4:] 
+                                         for x in financial_report_columns}
+    df_0years_known.rename(columns=financial_report_columns_renaming, inplace=True)
+
+    factors_nodot = factors_2021[5:]
+    factors_renaming = {x: '. '.join(x.split()) for x in factors_nodot}
+    factors_renaming.update({
+        'Факт.32': 'Факт. 32',   
+        'Факт.31': 'Факт. 31',
+        'Факт.23': 'Факт. 23'
+    })
+    df_0years_known.rename(columns=factors_renaming, inplace=True)
+    
+    df_0years_known['binary_target'] = df_0years_known[['ПДЗ 1-30', 'ПДЗ 31-90', 'ПДЗ 91-365', 
+                                                        'ПДЗ более 365',]].sum(axis=1) > 0
+    
+    if drop_unnecessary:
+        columns_to_drop = [
+            'ПДЗ 1-30',
+            'ПДЗ 31-90',
+            'ПДЗ 91-365',
+            'ПДЗ более 365',
+        ]
+        df_0years_known.drop(columns=columns_to_drop, inplace=True)
+    
+    dataframes.append(df_0years_known.copy())
+    
+    
+    return pd.concat(dataframes, axis=0).reset_index(drop=True)
+
+
+
+def stats_PDZ_names(year):
+    names = [
+        'Макс. ПДЗ за {} год, дней',
+        'Сред. ПДЗ за {} год, дней',
+        'Кол-во просрочек свыше 5-ти дней за {} год, шт.',
+        'Общая сумма ПДЗ свыше 5-ти дней за {} год, руб.',
+        'Кол-во раз ПДЗ за {} год, шт.',
+    ]
+    return [x.format(year) for x in names], {x.format(year): x.format(-1) for x in names}
+
+
+def create_df_1year_known_2020(drop_unnecessary=True):
+    current_year = 2020
+    file_path = Path(__file__)
+    df_ = pd.read_csv(file_path.parent.parent / 'raw/agents2020.csv')
+    df_['year'] = str(current_year)
+    financial_report_columns_renaming = {x :f'{int(x[:4]) - current_year}' + x[4:] 
+                                         for x in financial_report_columns}
+    df_.rename(columns=financial_report_columns_renaming, inplace=True)
+    df_['binary_target'] = df_['Кол-во раз ПДЗ за 2020 год, шт.'] != 0
+
+    if drop_unnecessary:
+        columns_to_drop = stats_PDZ_names(current_year)[0]
+        df_.drop(columns=columns_to_drop, inplace=True)
+
+    df_.set_index('Наименование ДП', inplace=True)
+    cols, cols_renaming = stats_PDZ_names(current_year-1)
+    df_prev = pd.read_csv(file_path.parent.parent / 'raw/agents2019.csv').set_index('Наименование ДП')[cols]
+    
+    df_ = df_.join(df_prev)
+    df_.rename(columns=cols_renaming, inplace=True)
+    
+    return df_.reset_index()
+
+
+def create_df_1year_known_2021(drop_unnecessary=True):
+    current_year = 2021
+    file_path = Path(__file__)
+    df_ = pd.read_csv(file_path.parent.parent / 'raw/agents2021.csv')
+    df_['year'] = str(current_year)
+    financial_report_columns_renaming = {x :f'{int(x[:4]) - current_year}' + x[4:] 
+                                         for x in financial_report_columns}
+    df_.rename(columns=financial_report_columns_renaming, inplace=True)
+    df_['binary_target'] = df_['Кол-во раз ПДЗ за 2020 год, шт.'] != 0
+
+    columns_to_drop = [
+        'Unnamed: 0', 
+        'Макс. ПДЗ за 2019 год, дней',
+        'Сред. ПДЗ за 2019 год, дней',
+        'Кол-во просрочек свыше 5-ти дней за 2019 год, шт.',
+        'Общая сумма ПДЗ свыше 5-ти дней за 2019 год, руб.',
+        'Кол-во раз ПДЗ за 2019 год, шт.',
+    ]
+    df_.drop(columns=columns_to_drop, inplace=True)
+    df_.rename(columns=stats_PDZ_names(current_year-1)[1], inplace=True)
+
+    factors_nodot = factors_2021[5:]
+    factors_renaming = {x: '. '.join(x.split()) for x in factors_nodot}
+    factors_renaming.update({
+        'Факт.32': 'Факт. 32',   
+        'Факт.31': 'Факт. 31',
+        'Факт.23': 'Факт. 23'
+    })
+    df_.rename(columns=factors_renaming, inplace=True)
+
+    df_['binary_target'] = df_[['ПДЗ 1-30', 'ПДЗ 31-90', 'ПДЗ 91-365', 
+                                'ПДЗ более 365',]].sum(axis=1) > 0
+
+    if drop_unnecessary:
+        columns_to_drop = [
+            'ПДЗ 1-30',
+            'ПДЗ 31-90',
+            'ПДЗ 91-365',
+            'ПДЗ более 365',
+        ]
+        df_.drop(columns=columns_to_drop, inplace=True)
+
+    df_.set_index('Наименование ДП', inplace=True)
+    cols = factors_2020 + ['Итого',]
+    df_prev = pd.read_csv(file_path.parent.parent / 'raw/agents2020.csv').set_index('Наименование ДП')[cols]
+    df_prev.rename(columns={x: x + ' (-1)' for x in cols}, inplace=True)
+    df_ = df_.join(df_prev)
+
+    return df_.reset_index()
+
+
+def create_df_1year_known(drop_unnecessary=True):
+    df_2020 = create_df_1year_known_2020(drop_unnecessary=drop_unnecessary)
+    df_2021 = create_df_1year_known_2021(drop_unnecessary=drop_unnecessary)
+    
+    return pd.concat([df_2020, df_2021], axis=0).reset_index(drop=True)
