@@ -14,7 +14,7 @@ TEST_SIZE = 0.3
 BASIC_TRESHOLD = 0.6
 N_SPLITS = 5
 
-REPORT_FILE_PATH = '../reports/report.csv'
+REPORT_FILE_PATH = '../reports/report_alex.csv'
 
 
 def fit_predict(model, X_train, y_train, X_test, y_test, treshold=BASIC_TRESHOLD, plot_roc_auc=False):
@@ -30,13 +30,13 @@ def fit_predict(model, X_train, y_train, X_test, y_test, treshold=BASIC_TRESHOLD
     return model, preds, probas
 
 
-def make_scores(y_test, preds, probas=None):
+def make_scores(y_test, preds, probas=None, use_probas=True):
     print('Validate predictions...')
     f1 = f1_score(y_test, preds)
     precision = precision_score(y_test, preds)
     recall = recall_score(y_test, preds)
     acc = accuracy_score(y_test, preds)
-    if probas:
+    if use_probas:
         roc_auc = roc_auc_score(y_test, probas)
     else:
         roc_auc = 0
@@ -49,7 +49,7 @@ def validate_treshold(model, X, y):
     f1_list, precision_list, recall_list, acc_list = [], [], [], []
     for treshold in treshold_list:
         model, preds, probas = fit_predict(model, X_train, y_train, X_test, y_test, treshold=treshold)
-        f1, precision, recall, acc, roc_auc = make_scores(y_test, preds)
+        f1, precision, recall, acc, roc_auc = make_scores(y_test, preds, probas=probas)
         f1_list.append(f1)
         precision_list.append(precision)
         recall_list.append(recall)
@@ -65,15 +65,15 @@ def validate_treshold(model, X, y):
     plt.show()
     
 
-def make_report(model, X, y, treshold=BASIC_TRESHOLD, use_cross_val=True, to_file=False, file_path=REPORT_FILE_PATH, comment=''):
+def make_report(model, X, y, treshold=BASIC_TRESHOLD, use_cross_val=True, to_file=True, file_path=REPORT_FILE_PATH, comment=''):
     if use_cross_val:
         skf = StratifiedKFold(n_splits=N_SPLITS, random_state=RANDOM_STATE, shuffle=True)
         f1_list, precision_list, recall_list, acc_list, roc_list = [], [], [], [], []
         for train_index, test_index in skf.split(X, y):
-            X_train, X_test = X[train_index], X[test_index]
+            X_train, X_test = X.iloc[train_index], X.iloc[test_index]
             y_train, y_test = y[train_index], y[test_index]
-            model, preds = fit_predict(model, X_train, y_train, X_test, y_test, treshold=treshold, plot_roc_auc=False)
-            f1, precision, recall, acc, roc_auc = make_scores(y_test, preds)
+            model, preds, probas = fit_predict(model, X_train, y_train, X_test, y_test, treshold=treshold, plot_roc_auc=False)
+            f1, precision, recall, acc, roc_auc = make_scores(y_test, preds, probas=probas)
             f1_list.append(f1)
             precision_list.append(precision)
             recall_list.append(recall)
@@ -84,6 +84,7 @@ def make_report(model, X, y, treshold=BASIC_TRESHOLD, use_cross_val=True, to_fil
         precision = np.mean(precision_list)
         recall = np.mean(recall_list)
         acc = np.mean(acc_list)
+        print("ROC list: ", roc_list)
         roc_auc = np.mean(roc_list)
         
         f1_std = np.std(f1_list)
@@ -108,3 +109,4 @@ def make_report(model, X, y, treshold=BASIC_TRESHOLD, use_cross_val=True, to_fil
             res.to_csv(file_path, mode='a', header=False, index=False)
         else:
             res.to_csv(file_path, index=False)
+            
