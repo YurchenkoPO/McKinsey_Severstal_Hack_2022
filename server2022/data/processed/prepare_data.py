@@ -151,7 +151,8 @@ def create_df_2years_known():
 
 
 
-def create_df_0years_known(drop_unnecessary=True):
+def create_df_0years_known(drop_unnecessary=True, drop_extra_factors=True, drop_2021_unique_feats=True, 
+                           drop_5y_ago=True):
     """
     drop_unnecessary: whether to drop targets other than binary PDZ
     """
@@ -197,7 +198,7 @@ def create_df_0years_known(drop_unnecessary=True):
             'Кол-во раз ПДЗ за 2020 год, шт.',
         ]
         df_0years_known.drop(columns=columns_to_drop, inplace=True)
-    
+        
     dataframes.append(df_0years_known.copy())
     
     
@@ -230,7 +231,7 @@ def create_df_0years_known(drop_unnecessary=True):
         'Факт.32': 'Факт. 32',   
         'Факт.31': 'Факт. 31',
         'Факт.23': 'Факт. 23'
-    })
+    })    
     df_0years_known.rename(columns=factors_renaming, inplace=True)
     
     df_0years_known['binary_target'] = df_0years_known[['ПДЗ 1-30', 'ПДЗ 31-90', 'ПДЗ 91-365', 
@@ -245,10 +246,29 @@ def create_df_0years_known(drop_unnecessary=True):
         ]
         df_0years_known.drop(columns=columns_to_drop, inplace=True)
     
+    if drop_2021_unique_feats:
+        columns_to_drop = [
+            'Оценка потенциала контрагента 1, руб.',
+            'Оценка потенциала контрагента 2, руб.',
+            'Статус',
+        ]
+        df_0years_known.drop(columns=columns_to_drop, inplace=True)
+    
     dataframes.append(df_0years_known.copy())
     
+    result = pd.concat(dataframes, axis=0).reset_index(drop=True)
     
-    return pd.concat(dataframes, axis=0).reset_index(drop=True)
+    if drop_extra_factors:
+        usefull_factors = factors_2021[:2] + list(factors_renaming.values())
+        extra_factors = list(set(factors_2020) - set(usefull_factors))
+        result.drop(columns=extra_factors, inplace=True)
+
+    if drop_5y_ago:
+        cols = result.columns.tolist()
+        cols_5y_ago = [x for x in cols if x.startswith('-5')]
+        result.drop(columns=cols_5y_ago, inplace=True)
+        
+    return result
 
 
 
