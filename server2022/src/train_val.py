@@ -14,7 +14,7 @@ TEST_SIZE = 0.3
 BASIC_TRESHOLD = 0.6
 N_SPLITS = 5
 
-REPORT_FILE_PATH = '../reports/report_alex.csv'
+REPORT_FILE_PATH = '../reports/report.csv'
 
 
 def fit_predict(model, X_train, y_train, X_test, y_test, treshold=BASIC_TRESHOLD, plot_roc_auc=False):
@@ -84,7 +84,6 @@ def make_report(model, X, y, treshold=BASIC_TRESHOLD, use_cross_val=True, to_fil
         precision = np.mean(precision_list)
         recall = np.mean(recall_list)
         acc = np.mean(acc_list)
-        print("ROC list: ", roc_list)
         roc_auc = np.mean(roc_list)
         
         f1_std = np.std(f1_list)
@@ -98,7 +97,7 @@ def make_report(model, X, y, treshold=BASIC_TRESHOLD, use_cross_val=True, to_fil
         f1, precision, recall, acc, roc_auc = make_scores(y_test, preds)
         f1_std, precision_std, recall_std, acc_std, roc_auc_std = 0, 0, 0, 0, 0
         
-    print('\033[92m' + f'F1 = {round(f1, 4)}, Precision = {round(precision, 4)}, Recall = {round(recall, 4)}' + '\033[0m')
+    print('\033[92m' + f'F1 = {round(f1, 4)}, Precision = {round(precision, 4)}, Recall = {round(recall, 4)}, Accuracy = {round(acc, 4)}, ROC_AUC = {round(roc_auc, 4)}' + '\033[0m')
     if to_file:
         res = pd.DataFrame([[str(model.__class__()), model.get_params(), comment, round(treshold, 2), round(roc_auc, 4),
                              round(f1, 4), round(precision, 4), round(recall, 4), round(acc, 4), use_cross_val, 
