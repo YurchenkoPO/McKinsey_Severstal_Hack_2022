@@ -3,7 +3,7 @@ import numpy as np
 
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
-class Model:
+class Feature_gen:
     def __init__(self, max_year, min_year):
         # To be continued
         self.finance_feat = [
@@ -76,6 +76,6 @@ class Model:
         df = self.diff_finance_features(df, self.max_year, self.min_year)
         df = self.ratio_finance_features(df, self.max_year, self.min_year)
 
-        df = self.cat_one_hot(df, self.cat_cols)
+        #df = self.cat_one_hot(df, self.cat_cols)
 
         return df
