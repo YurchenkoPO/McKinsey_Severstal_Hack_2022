@@ -151,7 +151,8 @@ def create_df_2years_known():
 
 
 
-def create_df_0years_known(drop_unnecessary=True):
+def create_df_0years_known(drop_unnecessary=True, drop_extra_factors=True, drop_2021_unique_feats=True, 
+                           drop_5y_ago=True):
     """
     drop_unnecessary: whether to drop targets other than binary PDZ
     """
@@ -197,7 +198,7 @@ def create_df_0years_known(drop_unnecessary=True):
             'Кол-во раз ПДЗ за 2020 год, шт.',
         ]
         df_0years_known.drop(columns=columns_to_drop, inplace=True)
-    
+        
     dataframes.append(df_0years_known.copy())
     
     
@@ -230,7 +231,7 @@ def create_df_0years_known(drop_unnecessary=True):
         'Факт.32': 'Факт. 32',   
         'Факт.31': 'Факт. 31',
         'Факт.23': 'Факт. 23'
-    })
+    })    
     df_0years_known.rename(columns=factors_renaming, inplace=True)
     
     df_0years_known['binary_target'] = df_0years_known[['ПДЗ 1-30', 'ПДЗ 31-90', 'ПДЗ 91-365', 
@@ -245,10 +246,29 @@ def create_df_0years_known(drop_unnecessary=True):
         ]
         df_0years_known.drop(columns=columns_to_drop, inplace=True)
     
+    if drop_2021_unique_feats:
+        columns_to_drop = [
+            'Оценка потенциала контрагента 1, руб.',
+            'Оценка потенциала контрагента 2, руб.',
+            'Статус',
+        ]
+        df_0years_known.drop(columns=columns_to_drop, inplace=True)
+    
     dataframes.append(df_0years_known.copy())
     
+    result = pd.concat(dataframes, axis=0).reset_index(drop=True)
     
-    return pd.concat(dataframes, axis=0).reset_index(drop=True)
+    if drop_extra_factors:
+        usefull_factors = factors_2021[:2] + list(factors_renaming.values())
+        extra_factors = list(set(factors_2020) - set(usefull_factors))
+        result.drop(columns=extra_factors, inplace=True)
+
+    if drop_5y_ago:
+        cols = result.columns.tolist()
+        cols_5y_ago = [x for x in cols if x.startswith('-5')]
+        result.drop(columns=cols_5y_ago, inplace=True)
+        
+    return result
 
 
 
@@ -263,7 +283,7 @@ def stats_PDZ_names(year):
     return [x.format(year) for x in names], {x.format(year): x.format(-1) for x in names}
 
 
-def create_df_1year_known_2020(drop_unnecessary=True):
+def create_df_1year_known_2020(drop_unnecessary=True, drop_extra_factors=True):
     current_year = 2020
     file_path = Path(__file__)
     df_ = pd.read_csv(file_path.parent.parent / 'raw/agents2020.csv')
@@ -283,11 +303,25 @@ def create_df_1year_known_2020(drop_unnecessary=True):
     
     df_ = df_.join(df_prev)
     df_.rename(columns=cols_renaming, inplace=True)
+    df_.reset_index(inplace=True)
+
+    if drop_extra_factors:
+        factors_nodot = factors_2021[5:]
+        factors_renaming = {x: '. '.join(x.split()) for x in factors_nodot}
+        factors_renaming.update({
+            'Факт.32': 'Факт. 32',   
+            'Факт.31': 'Факт. 31',
+            'Факт.23': 'Факт. 23'
+        })        
+        usefull_factors = factors_2021[:2] + list(factors_renaming.values())
+        extra_factors = list(set(factors_2020) - set(usefull_factors))
+        df_.drop(columns=extra_factors, inplace=True)    
     
-    return df_.reset_index()
+    return df_
 
 
-def create_df_1year_known_2021(drop_unnecessary=True):
+def create_df_1year_known_2021(drop_unnecessary=True, drop_2021_unique_feats=True, drop_5y_ago=True,
+                               factors_2020=False):
     current_year = 2021
     file_path = Path(__file__)
     df_ = pd.read_csv(file_path.parent.parent / 'raw/agents2021.csv')
@@ -329,17 +363,34 @@ def create_df_1year_known_2021(drop_unnecessary=True):
         ]
         df_.drop(columns=columns_to_drop, inplace=True)
 
-    df_.set_index('Наименование ДП', inplace=True)
-    cols = factors_2020 + ['Итого',]
-    df_prev = pd.read_csv(file_path.parent.parent / 'raw/agents2020.csv').set_index('Наименование ДП')[cols]
-    df_prev.rename(columns={x: x + ' (-1)' for x in cols}, inplace=True)
-    df_ = df_.join(df_prev)
+    if factors_2020:
+        df_.set_index('Наименование ДП', inplace=True)
+        cols = factors_2020 + ['Итого',]
+        df_prev = pd.read_csv(file_path.parent.parent / 'raw/agents2020.csv').set_index('Наименование ДП')[cols]
+        df_prev.rename(columns={x: x + ' (-1)' for x in cols}, inplace=True)
+        df_ = df_.join(df_prev)
+        df_.reset_index(inplace=True)
 
-    return df_.reset_index()
+    if drop_5y_ago:
+        cols = df_.columns.tolist()
+        cols_5y_ago = [x for x in cols if x.startswith('-5')]
+        df_.drop(columns=cols_5y_ago, inplace=True)
+        
+    if drop_2021_unique_feats:
+        columns_to_drop = [
+            'Оценка потенциала контрагента 1, руб.',
+            'Оценка потенциала контрагента 2, руб.',
+            'Статус',
+        ]
+        df_.drop(columns=columns_to_drop, inplace=True)
+
+    return df_
 
 
-def create_df_1year_known(drop_unnecessary=True):
-    df_2020 = create_df_1year_known_2020(drop_unnecessary=drop_unnecessary)
-    df_2021 = create_df_1year_known_2021(drop_unnecessary=drop_unnecessary)
+def create_df_1year_known(drop_unnecessary=True, drop_extra_factors=True, drop_2021_unique_feats=True, 
+                          drop_5y_ago=True, factors_2020=False):
+    df_2020 = create_df_1year_known_2020(drop_unnecessary=drop_unnecessary, drop_extra_factors=drop_extra_factors)
+    df_2021 = create_df_1year_known_2021(drop_unnecessary=drop_unnecessary, drop_2021_unique_feats=drop_2021_unique_feats,
+                                         drop_5y_ago=drop_5y_ago, factors_2020=factors_2020)
     
     return pd.concat([df_2020, df_2021], axis=0).reset_index(drop=True)

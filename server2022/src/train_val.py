@@ -4,6 +4,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 plt.style.use('seaborn')
+import shap
 
 from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_score, RocCurveDisplay, accuracy_score, roc_auc_score
 from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
@@ -11,10 +12,38 @@ from sklearn.ensemble import RandomForestClassifier
 
 RANDOM_STATE = 1
 TEST_SIZE = 0.3
+NEW_CLIENTS_SIZE = 0.3
 BASIC_TRESHOLD = 0.6
 N_SPLITS = 5
 
-REPORT_FILE_PATH = '../reports/report_alex.csv'
+REPORT_FILE_PATH = '../reports/report.csv'
+
+
+def data_split(df, create_new_clients=False, new_clients_size=NEW_CLIENTS_SIZE):
+    if create_new_clients:
+        all_clients = df['Наименование ДП'].unique()
+        new_ids = all_clients.copy()
+        np.random.shuffle(new_ids, random_state=RANDOM_STATE)[:int(len(all_clients) * new_clients_size)]
+        if '2019' in df.year.unique():
+            train = df[df.year.isin(['2019', '2020'])]
+            test = df[df.year == '2021']
+        else:
+            train = df[df.year == '2020']
+            test = df[df.year == '2021']
+        train = train[~train['Наименование ДП'].isin(new_ids)]
+    else:
+        if '2019' in df.year.unique():
+            train = df[df.year.isin(['2019', '2020'])]
+            test = df[df.year == '2021']
+        else:
+            train = df[df.year == '2020']
+            test = df[df.year == '2021']
+    
+    y_train = train.binary_target.astype(int)
+    y_test = test.binary_target.astype(int)
+    train = train.drop(columns=['year', 'Наименование ДП', 'binary_target'])
+    test = test.drop(columns=['year', 'Наименование ДП', 'binary_target'])
+    return train, test, y_train, y_test
 
 
 def fit_predict(model, X_train, y_train, X_test, y_test, treshold=BASIC_TRESHOLD, plot_roc_auc=False):
@@ -43,8 +72,9 @@ def make_scores(y_test, preds, probas=None, use_probas=True):
     return f1, precision, recall, acc, roc_auc
 
 
-def validate_treshold(model, X, y):
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE)
+def validate_treshold(model, X, create_new_clients=False):
+    # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE)
+    X_train, X_test, y_train, y_test = data_split(X, create_new_clients=create_new_clients)
     treshold_list = np.arange(0.1, 1, 0.05)
     f1_list, precision_list, recall_list, acc_list = [], [], [], []
     for treshold in treshold_list:
@@ -65,8 +95,9 @@ def validate_treshold(model, X, y):
     plt.show()
     
 
-def make_report(model, X, y, treshold=BASIC_TRESHOLD, use_cross_val=True, to_file=True, file_path=REPORT_FILE_PATH, comment=''):
+def make_report(model, X, treshold=BASIC_TRESHOLD, use_cross_val=False, create_new_clients=False, to_file=True, file_path=REPORT_FILE_PATH, comment=''):
     if use_cross_val:
+        raise NotImplementedError()
         skf = StratifiedKFold(n_splits=N_SPLITS, random_state=RANDOM_STATE, shuffle=True)
         f1_list, precision_list, recall_list, acc_list, roc_list = [], [], [], [], []
         for train_index, test_index in skf.split(X, y):
@@ -84,7 +115,6 @@ def make_report(model, X, y, treshold=BASIC_TRESHOLD, use_cross_val=True, to_fil
         precision = np.mean(precision_list)
         recall = np.mean(recall_list)
         acc = np.mean(acc_list)
-        print("ROC list: ", roc_list)
         roc_auc = np.mean(roc_list)
         
         f1_std = np.std(f1_list)
@@ -93,12 +123,20 @@ def make_report(model, X, y, treshold=BASIC_TRESHOLD, use_cross_val=True, to_fil
         acc_std = np.std(acc_list)
         roc_auc_std = np.std(roc_list)
     else:
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE)
-        model, preds = fit_predict(model, X_train, y_train, X_test, y_test, treshold=treshold, plot_roc_auc=True)
-        f1, precision, recall, acc, roc_auc = make_scores(y_test, preds)
+        # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE)
+        X_train, X_test, y_train, y_test = data_split(X, create_new_clients=create_new_clients)
+        model, preds, probas = fit_predict(model, X_train, y_train, X_test, y_test, treshold=treshold, plot_roc_auc=True)
+        f1, precision, recall, acc, roc_auc = make_scores(y_test, preds, probas=probas)
         f1_std, precision_std, recall_std, acc_std, roc_auc_std = 0, 0, 0, 0, 0
         
-    print('\033[92m' + f'F1 = {round(f1, 4)}, Precision = {round(precision, 4)}, Recall = {round(recall, 4)}' + '\033[0m')
+        #feature_importance
+        explainer = shap.TreeExplainer(model)
+        shap_values = explainer.shap_values(X_test)
+        #shap.force_plot(explainer.expected_value, shap_values[0,:], X_test.iloc[0,:])
+        shap.summary_plot(shap_values, X_test)
+        plt.show()
+        
+    print('\033[92m' + f'F1 = {round(f1, 4)}, Precision = {round(precision, 4)}, Recall = {round(recall, 4)}, Accuracy = {round(acc, 4)}, ROC_AUC = {round(roc_auc, 4)}' + '\033[0m')
     if to_file:
         res = pd.DataFrame([[str(model.__class__()), model.get_params(), comment, round(treshold, 2), round(roc_auc, 4),
                              round(f1, 4), round(precision, 4), round(recall, 4), round(acc, 4), use_cross_val, 
@@ -109,4 +147,3 @@ def make_report(model, X, y, treshold=BASIC_TRESHOLD, use_cross_val=True, to_fil
             res.to_csv(file_path, mode='a', header=False, index=False)
         else:
             res.to_csv(file_path, index=False)
-            
