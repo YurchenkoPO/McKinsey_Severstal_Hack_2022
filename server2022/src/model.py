@@ -97,7 +97,7 @@ class Feature_gen:
         return df
 
     def get_cat_feat_name(self, df):
-        return [x for x in df.columns if 'Факт' in x] + ['Итого']
+        return [x for x in df.columns if 'Факт' in x]
 
     def preprocessing_before_fitting(self, df):
         df = self.diff_finance_features(df, self.max_lookback, self.min_lookback)
