@@ -36,14 +36,14 @@ class Feature_gen:
     def diff_finance_features(self, df, max_lookback, min_lookback):
         for fin_feat in self.finance_feat:
             for year in range(max_lookback, min_lookback):
-                df[fin_feat + f" ,прирост за {year+1} год"] = (
+                df[fin_feat + f" ,прирост за {year + 1} год"] = (
                     df[self.get_full_finance_feat_name(fin_feat, year + 1)]
                     - df[self.get_full_finance_feat_name(fin_feat, year)]
                 )
 
                 scaler = MinMaxScaler()
-                df[fin_feat + f" ,прирост за {year+1} год"] = scaler.fit_transform(
-                    df[fin_feat + f" ,прирост за {year+1} год"].values.reshape(-1, 1)
+                df[fin_feat + f" ,прирост за {year + 1} год"] = scaler.fit_transform(
+                    df[fin_feat + f" ,прирост за {year + 1} год"].values.reshape(-1, 1)
                 )
         return df
 
@@ -80,15 +80,35 @@ class Feature_gen:
 
         return df
 
+    def scaling(self, df):
+        for fin_feat in self.finance_feat:
+            for year in range(self.max_lookback, self.min_lookback + 1):
+                scaler = MinMaxScaler()
+                df[self.get_full_finance_feat_name(fin_feat, year)] = scaler.fit_transform(
+                    df[self.get_full_finance_feat_name(fin_feat, year)].values.reshape(-1, 1)
+                )
+
+        return df
+
     def cat_one_hot(self, df, cat_cols):
+        df[cat_cols].fillna(str(0), inplace=True)
         df = pd.get_dummies(df, columns=cat_cols)
 
         return df
+
+    def get_cat_feat_name(self, df):
+        return [x for x in df.columns if 'Факт' in x] + ['Итого']
 
     def preprocessing_before_fitting(self, df):
         df = self.diff_finance_features(df, self.max_lookback, self.min_lookback)
         df = self.ratio_finance_features(df, self.max_lookback, self.min_lookback)
 
-        # df = self.cat_one_hot(df, self.cat_cols)
+        df = self.scaling(df)
+
+        cat_col = self.get_cat_feat_name(df)
+        other_col = [x for x in df.columns if x not in cat_col]
+
+        df = self.cat_one_hot(df, cat_col)
+        df.fillna(0, inplace=True)
 
         return df
