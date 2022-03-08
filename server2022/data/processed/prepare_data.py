@@ -1,5 +1,27 @@
 import pandas as pd
+import numpy as np
 from pathlib import Path
+from functools import partial
+
+
+FINANCE_FEAT = [
+    "Нематериальные активы",
+    "Основные средства ",
+    "Внеоборотные активы",
+    "Дебиторская задолженность",
+    "Оборотные активы",
+    "Уставный капитал ",
+    "Капитал и резервы",
+    "Заёмные средства (долгосрочные)",
+    "Долгосрочные обязательства",
+    "Заёмные средства (краткосрочные)",
+    "Кредиторская задолженность",
+    "Краткосрочные обязательства",
+    "Выручка",
+    "Себестоимость продаж",
+    "Прибыль (убыток) до налогообложения ",
+    "Прибыль (убыток) от продажи",
+]
 
 
 financial_report_columns = [
@@ -150,9 +172,34 @@ def create_df_2years_known():
     return df_2_years_known
 
 
+def total_mean_growth(row, fin_feat_name):
+    min_year, min_year_val = None, None
+    max_year, max_year_val = None, None
+
+    for col in row.index.values:    
+        if fin_feat_name not in col:
+            continue
+        
+        value = row[col]
+        if (value < 10) or np.isnan(value):
+            continue
+            
+        year = int(col[:2])
+        if (min_year is None) or year < min_year:
+            min_year = year
+            min_year_val = value
+        if (max_year is None) or year > max_year:
+            max_year = year
+            max_year_val = value
+    
+    if (min_year is None) or (min_year == max_year):
+        return np.nan
+
+    return (max_year_val / min_year_val) ** (1.0 / (max_year-min_year)) - 1
+
 
 def create_df_0years_known(drop_unnecessary=True, drop_extra_factors=True, drop_2021_unique_feats=True, 
-                           drop_5y_ago=True, drop_facts=True):
+                           drop_5y_ago=True, drop_facts=True, add_growth=True):
     """
     drop_unnecessary: whether to drop targets other than binary PDZ
     """
@@ -271,6 +318,13 @@ def create_df_0years_known(drop_unnecessary=True, drop_extra_factors=True, drop_
     if drop_facts:
         result = result.loc[:, [col for col in result.columns if 'Факт' not in col]]
         
+    if add_growth:
+        for fin_feat in FINANCE_FEAT:
+            col_name = fin_feat + ' total mean growth'
+            result[col_name] = result.apply(partial(total_mean_growth, fin_feat_name=fin_feat), axis=1)
+            fulfill_value = result[col_name].median(skipna=True)
+            result.loc[result[col_name].isna(), col_name] = fulfill_value
+
     return result
 
 
@@ -391,9 +445,18 @@ def create_df_1year_known_2021(drop_unnecessary=True, drop_2021_unique_feats=Tru
 
 
 def create_df_1year_known(drop_unnecessary=True, drop_extra_factors=True, drop_2021_unique_feats=True, 
-                          drop_5y_ago=True, factors_2020=False):
+                          drop_5y_ago=True, factors_2020=False, add_growth=True):
     df_2020 = create_df_1year_known_2020(drop_unnecessary=drop_unnecessary, drop_extra_factors=drop_extra_factors)
     df_2021 = create_df_1year_known_2021(drop_unnecessary=drop_unnecessary, drop_2021_unique_feats=drop_2021_unique_feats,
                                          drop_5y_ago=drop_5y_ago, factors_2020=factors_2020)
+
+    result = pd.concat([df_2020, df_2021], axis=0).reset_index(drop=True)
     
-    return pd.concat([df_2020, df_2021], axis=0).reset_index(drop=True)
+    if add_growth:
+        for fin_feat in FINANCE_FEAT:
+            col_name = fin_feat + ' total mean growth'
+            result[col_name] = result.apply(partial(total_mean_growth, fin_feat_name=fin_feat), axis=1)
+            fulfill_value = result[col_name].median(skipna=True)
+            result.loc[result[col_name].isna(), col_name] = fulfill_value    
+    
+    return result
