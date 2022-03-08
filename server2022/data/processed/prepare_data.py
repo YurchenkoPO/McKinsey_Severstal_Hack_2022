@@ -207,8 +207,38 @@ def count_log_values(column_values):
     return res
 
 
+def normalize_feat_0years_known(df, col_name):
+    index_name = 'Наименование ДП'
+    df_2019 = df[df['year'] == '2019'].set_index(index_name)[[col_name]]
+    df_2020 = df[df['year'] == '2020'].set_index(index_name)[[col_name]]
+    df_2021 = df[df['year'] == '2021'].set_index(index_name)[[col_name]]
+
+    def find_multiplier(joined):
+        def func(row):
+            if (np.abs(row[col_name]) < 10) or (np.abs(row[col_name + ' prev']) < 10):
+                return np.nan
+            return row[col_name + ' prev'] / row[col_name]
+
+        multiplier_values = joined.apply(func, axis=1)
+        if multiplier_values.isna().sum() > len(multiplier_values) - 10:
+            return 1.0
+        multiplier = multiplier_values.median(skipna=True)
+        
+        return multiplier
+    
+    mult_2020 = find_multiplier(df_2020.join(df_2019, rsuffix=' prev'))
+    mult_2021 = find_multiplier(df_2021.join(df_2019, rsuffix=' prev'))
+    
+    df.loc[df['year'] == '2019', 'Normalized ' + col_name] = df.loc[df['year'] == '2019', col_name]
+    df.loc[df['year'] == '2020', 'Normalized ' + col_name] = df.loc[df['year'] == '2020', col_name] * mult_2020
+    df.loc[df['year'] == '2021', 'Normalized ' + col_name] = df.loc[df['year'] == '2021', col_name] * mult_2021
+
+    return df
+
+
 def create_df_0years_known(drop_unnecessary=True, drop_extra_factors=True, drop_2021_unique_feats=True, 
-                           drop_5y_ago=True, drop_facts=True, add_growth=True, count_log_fin_vals=True):
+                           drop_5y_ago=True, drop_facts=True, add_growth=True, count_log_fin_vals=True,
+                           normalize_fin_columns=True):
     """
     drop_unnecessary: whether to drop targets other than binary PDZ
     """
@@ -342,7 +372,21 @@ def create_df_0years_known(drop_unnecessary=True, drop_extra_factors=True, drop_
                 if not col_name in result.columns.tolist():
                     continue
                 result['log ' + col_name] = count_log_values(result[col_name].values)        
+
+    if normalize_fin_columns:
+        cols_list = result.columns.tolist()
+        for col_name in cols_list:
+            flag = False
+            for fin_feat in FINANCE_FEAT:
+                if fin_feat in col_name:
+                    flag = True
+            if not flag:
+                continue
             
+            result = normalize_feat_0years_known(result.copy(), col_name)
+            result.drop(columns=[col_name, ], inplace=True)
+            result.rename(columns={'Normalized ' + col_name: col_name}, inplace=True)
+
     return result
 
 
