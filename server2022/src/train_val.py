@@ -10,6 +10,8 @@ from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_sco
 from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
 from sklearn.ensemble import RandomForestClassifier
 from catboost import Pool, CatBoostClassifier
+from hyperopt import hp
+from hyperopt import fmin, tpe, STATUS_OK, STATUS_FAIL, Trials
 
 RANDOM_STATE = 1
 TEST_SIZE = 0.3

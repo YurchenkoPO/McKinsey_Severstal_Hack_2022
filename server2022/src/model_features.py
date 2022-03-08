@@ -87,9 +87,11 @@ class Feature_gen:
     def get_cat_feat_name(self, df):
         return [x for x in df.columns if 'Факт' in x]
 
-    def preprocessing_before_fitting(self, df):
-        df = self.diff_finance_features(df, self.max_lookback, self.min_lookback)
-        df = self.ratio_finance_features(df, self.max_lookback, self.min_lookback)
+    def preprocessing_before_fitting(self, df, use_diff_features=True, use_ratio_features=True):
+        if use_diff_features:
+            df = self.diff_finance_features(df, self.max_lookback, self.min_lookback)
+        if use_ratio_features:
+            df = self.ratio_finance_features(df, self.max_lookback, self.min_lookback)
 
         df = self.scaling(df)
 
