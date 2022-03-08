@@ -9,6 +9,7 @@ import shap
 from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_score, RocCurveDisplay, accuracy_score, roc_auc_score
 from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
 from sklearn.ensemble import RandomForestClassifier
+from catboost import Pool, CatBoostClassifier
 
 RANDOM_STATE = 1
 TEST_SIZE = 0.3
@@ -48,7 +49,12 @@ def data_split(df, create_new_clients=False, new_clients_size=NEW_CLIENTS_SIZE):
 
 def fit_predict(model, X_train, y_train, X_test, y_test, treshold=BASIC_TRESHOLD, plot_roc_auc=False):
     print(f'Fitting model {model} with treshold = {round(treshold, 2)}...')
-    model.fit(X_train, y_train)
+    if str(model.__class__()).split('.')[-1].split()[0] == 'CatBoostClassifier':
+        X_train_, X_val, y_train_, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=RANDOM_STATE)
+        eval_set = Pool(X_val, y_val)
+        model.fit(X_train_, y_train_, eval_set=eval_set)
+    else:
+        model.fit(X_train, y_train)
     probas = model.predict_proba(X_test)[:, 1]
     preds = probas.copy()
     preds[np.where(preds < treshold)] = 0
@@ -60,7 +66,7 @@ def fit_predict(model, X_train, y_train, X_test, y_test, treshold=BASIC_TRESHOLD
 
 
 def make_scores(y_test, preds, probas=None, use_probas=True):
-    print('Validate predictions...')
+    # print('Validate predictions...')
     f1 = f1_score(y_test, preds)
     precision = precision_score(y_test, preds)
     recall = recall_score(y_test, preds)
@@ -75,10 +81,13 @@ def make_scores(y_test, preds, probas=None, use_probas=True):
 def validate_treshold(model, X, create_new_clients=False):
     # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE)
     X_train, X_test, y_train, y_test = data_split(X, create_new_clients=create_new_clients)
-    treshold_list = np.arange(0.1, 1, 0.05)
+    treshold_list = np.arange(0.1, 1, 0.005)
     f1_list, precision_list, recall_list, acc_list = [], [], [], []
+    model, preds, probas = fit_predict(model, X_train, y_train, X_test, y_test, treshold=BASIC_TRESHOLD)
     for treshold in treshold_list:
-        model, preds, probas = fit_predict(model, X_train, y_train, X_test, y_test, treshold=treshold)
+        preds = probas.copy()
+        preds[np.where(preds < treshold)] = 0
+        preds[np.where(preds >= treshold)] = 1
         f1, precision, recall, acc, roc_auc = make_scores(y_test, preds, probas=probas)
         f1_list.append(f1)
         precision_list.append(precision)
@@ -130,11 +139,14 @@ def make_report(model, X, treshold=BASIC_TRESHOLD, use_cross_val=False, create_n
         f1_std, precision_std, recall_std, acc_std, roc_auc_std = 0, 0, 0, 0, 0
         
         #feature_importance
-        explainer = shap.TreeExplainer(model)
-        shap_values = explainer.shap_values(X_test)
-        #shap.force_plot(explainer.expected_value, shap_values[0,:], X_test.iloc[0,:])
-        shap.summary_plot(shap_values, X_test)
-        plt.show()
+        try:
+            explainer = shap.TreeExplainer(model)
+            shap_values = explainer.shap_values(X_test)
+            #shap.force_plot(explainer.expected_value, shap_values[0,:], X_test.iloc[0,:])
+            shap.summary_plot(shap_values, X_test)
+            plt.show()
+        except:
+            pass
         
     print('\033[92m' + f'F1 = {round(f1, 4)}, Precision = {round(precision, 4)}, Recall = {round(recall, 4)}, Accuracy = {round(acc, 4)}, ROC_AUC = {round(roc_auc, 4)}' + '\033[0m')
     if to_file:
