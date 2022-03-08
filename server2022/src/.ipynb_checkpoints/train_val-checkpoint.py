@@ -111,9 +111,10 @@ def validate_treshold(model, X, create_new_clients=False):
     plt.show()
     
 
-def make_report(model, X, treshold=BASIC_TRESHOLD, use_cross_val=False, create_new_clients=False, to_file=True, file_path=REPORT_FILE_PATH, comment=''):
+def make_report(model, X, treshold=BASIC_TRESHOLD, use_cross_val=False, create_new_clients=False, 
+                to_file=True, file_path=REPORT_FILE_PATH, comment='', need_val=False):
     if use_cross_val:
-        raise NotImplementedError()
+        raise NotImplementedError('No need because test data is always 2021 and we can`t use it as train data')
         skf = StratifiedKFold(n_splits=N_SPLITS, random_state=RANDOM_STATE, shuffle=True)
         f1_list, precision_list, recall_list, acc_list, roc_list = [], [], [], [], []
         for train_index, test_index in skf.split(X, y):
@@ -141,6 +142,8 @@ def make_report(model, X, treshold=BASIC_TRESHOLD, use_cross_val=False, create_n
     else:
         # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE)
         X_train, X_test, y_train, y_test = data_split(X, create_new_clients=create_new_clients)
+        if need_val:
+            X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=RANDOM_STATE)
         model, preds, probas = fit_predict(model, X_train, y_train, X_test, y_test, treshold=treshold, plot_roc_auc=True)
         f1, precision, recall, acc, roc_auc = make_scores(y_test, preds, probas=probas)
         f1_std, precision_std, recall_std, acc_std, roc_auc_std = 0, 0, 0, 0, 0
