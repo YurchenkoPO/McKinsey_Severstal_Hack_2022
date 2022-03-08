@@ -55,7 +55,7 @@ def fit_predict(model, X_train, y_train, X_test, y_test, treshold=BASIC_TRESHOLD
     print(f'Fitting model {model} with treshold = {round(treshold, 2)}...')
     if str(model.__class__()).split('.')[-1].split()[0] == 'CatBoostClassifier':
         if model.get_params()['use_best_model']:
-            X_train_, X_val, y_train_, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=RANDOM_STATE)
+            X_train_, X_val, y_train_, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=RANDOM_STATE)
             eval_set = Pool(X_val, y_val)
             model.fit(X_train_, y_train_, eval_set=eval_set)
         else:
@@ -172,7 +172,7 @@ def make_report(model, X, treshold=BASIC_TRESHOLD, use_cross_val=False, create_n
 
             
 def hyperopt_for_catboost(X):
-    X_train, X_test, y_train, y_test = data_split(df)
+    X_train, X_test, y_train, y_test = data_split(X)
 
     def get_catboost_params(space):
         params = dict()
@@ -182,7 +182,8 @@ def hyperopt_for_catboost(X):
         # params['l2_leaf_reg'] = space['l2_leaf_reg']
         # params['iterations'] = int(space['iterations'])
         return params
-
+    
+    global obj_call_count, cur_best_score, cur_best_loss
     obj_call_count = 0
     cur_best_loss = np.inf
     cur_best_score = 0
