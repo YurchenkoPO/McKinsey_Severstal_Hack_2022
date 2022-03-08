@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 plt.style.use('seaborn')
 import shap
 
-from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_score, RocCurveDisplay, accuracy_score, roc_auc_score
+from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_score, RocCurveDisplay, accuracy_score, roc_auc_score, log_loss
 from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
 from sklearn.ensemble import RandomForestClassifier
 from catboost import Pool, CatBoostClassifier
@@ -73,7 +73,7 @@ def fit_predict(model, X_train, y_train, X_test, y_test, treshold=BASIC_TRESHOLD
 def make_scores(y_test, preds, probas=None, use_probas=True):
     # print('Validate predictions...')
     f1 = f1_score(y_test, preds)
-    precision = precision_score(y_test, preds)
+    precision = precision_score(y_test, preds, zero_division=0)
     recall = recall_score(y_test, preds)
     acc = accuracy_score(y_test, preds)
     if use_probas:
@@ -164,3 +164,79 @@ def make_report(model, X, treshold=BASIC_TRESHOLD, use_cross_val=False, create_n
             res.to_csv(file_path, mode='a', header=False, index=False)
         else:
             res.to_csv(file_path, index=False)
+
+            
+def hyperopt_for_catboost(X):
+    X_train, X_test, y_train, y_test = data_split(df)
+
+    def get_catboost_params(space):
+        params = dict()
+        params['learning_rate'] = space['learning_rate']
+        params['class_w'] = space['class_w']
+        # params['depth'] = int(space['depth'])
+        # params['l2_leaf_reg'] = space['l2_leaf_reg']
+        # params['iterations'] = int(space['iterations'])
+        return params
+
+    obj_call_count = 0
+    cur_best_loss = np.inf
+    cur_best_score = 0
+
+    def objective(space):
+        global obj_call_count, cur_best_score, cur_best_loss
+        obj_call_count += 1
+        print('\nCatBoost objective call #{} cur_best_score={:7.5f}'.format(obj_call_count, cur_best_score) )
+        params = get_catboost_params(space)
+
+        sorted_params = sorted(space.items(), key=lambda z: z[0])
+        params_str = str.join(' ', ['{}={}'.format(k, v) for k, v in sorted_params])
+        print('Params: {}'.format(params_str) )
+
+        model = CatBoostClassifier(iterations=500, #params['iterations'],
+                                   depth=5, # params['depth'], 
+                                   l2_leaf_reg=5, #params['l2_leaf_reg'], 
+                                   learning_rate=params['learning_rate'],
+                                   loss_function='Logloss',
+                                   use_best_model=False,
+                                   eval_metric='AUC',
+                                   verbose=False,
+                                   class_weights=[1, params['class_w']],
+                                   random_seed=RANDOM_STATE,
+                                    )
+
+        model, preds, probas = fit_predict(model, X_train, y_train, X_test, y_test, treshold=0.5, plot_roc_auc=False)
+        f1, precision, recall, acc, roc_auc = make_scores(y_test, preds, probas=probas)
+        test_loss = log_loss(y_test, preds, labels=[0, 1])
+
+        nb_trees = model.tree_count_
+        print('nb_trees={}'.format(nb_trees))
+
+        if test_loss < cur_best_loss:
+            cur_best_loss = test_loss
+            cur_best_score = roc_auc
+            print('\033[92m' + 'NEW BEST LOSS={}'.format(cur_best_loss) + '\033[0m')
+            print('\033[92m' + 'NEW BEST ROC_AUC={}'.format(roc_auc) + '\033[0m')
+            
+        return {'loss':test_loss, 'status': STATUS_OK }
+    
+    space = {
+        'learning_rate': hp.loguniform('learning_rate', -6, -1),
+        'class_w': hp.uniform('class_w', 1e-4, 1e-1),
+        # 'depth': hp.quniform("depth", 2, 6, 1),
+        # 'iterations': hp.quniform('iterations', 200, 5000, 1),
+        # 'l2_leaf_reg': hp.uniform('l2_leaf_reg', 3, 8),
+    }
+
+    trials = Trials()
+    best = fmin(
+        fn=objective,
+        space=space,
+        algo=tpe.suggest,
+        max_evals=100,
+        trials=trials,
+        verbose=True
+    )
+    print('-'*50)
+    print('The best params:')
+    print(best)
+    return best
