@@ -476,7 +476,7 @@ def normalize_feat(df, col_name):
         return row[col_name + ' prev'] / row[col_name]
 
     multiplier_values = joined.apply(func, axis=1)
-    if multiplier_values.isna().sum() > len(multiplier_values) / 2:
+    if multiplier_values.isna().sum() > len(multiplier_values) - 10:
         return df
     multiplier = multiplier_values.median(skipna=True)
 
@@ -513,14 +513,17 @@ def create_df_1year_known(drop_unnecessary=True, drop_extra_factors=True, drop_2
                 result['log ' + col_name] = count_log_values(result[col_name].values)        
 
     if normalize_fin_columns:
-        for col in result.columns.tolist():
+        cols_list = result.columns.tolist()
+        for col_name in cols_list:
             flag = False
             for fin_feat in FINANCE_FEAT:
-                if fin_feat in col:
+                if fin_feat in col_name:
                     flag = True
             if not flag:
                 continue
             
-            result = normalize_feat(result.copy(), col)
+            result = normalize_feat(result.copy(), col_name)
+            result.drop(columns=[col_name, ], inplace=True)
+            result.rename(columns={'Normalized ' + col_name: col_name}, inplace=True)
 
     return result
