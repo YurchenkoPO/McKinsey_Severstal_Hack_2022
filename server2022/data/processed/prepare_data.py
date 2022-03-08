@@ -198,8 +198,17 @@ def total_mean_growth(row, fin_feat_name):
     return (max_year_val / min_year_val) ** (1.0 / (max_year-min_year)) - 1
 
 
+def count_log_values(column_values):
+    minus_mask = column_values < 0
+    zeros_mask = np.abs(column_values) < 0.1
+    res = np.log(np.abs(column_values) + 1)
+    res[minus_mask] *= -1
+    res[zeros_mask] = np.median(res[~zeros_mask])
+    return res
+
+
 def create_df_0years_known(drop_unnecessary=True, drop_extra_factors=True, drop_2021_unique_feats=True, 
-                           drop_5y_ago=True, drop_facts=True, add_growth=True):
+                           drop_5y_ago=True, drop_facts=True, add_growth=True, count_log_fin_vals=True):
     """
     drop_unnecessary: whether to drop targets other than binary PDZ
     """
@@ -325,6 +334,15 @@ def create_df_0years_known(drop_unnecessary=True, drop_extra_factors=True, drop_
             fulfill_value = result[col_name].median(skipna=True)
             result.loc[result[col_name].isna(), col_name] = fulfill_value
 
+    # DANGER: don't swap with previous !!
+    if count_log_fin_vals:
+        for fin_feat in FINANCE_FEAT:
+            for i in range(-5, 0):
+                col_name = str(i) + ', ' + fin_feat + ', RUB'
+                if not col_name in result.columns.tolist():
+                    continue
+                result['log ' + col_name] = count_log_values(result[col_name].values)        
+            
     return result
 
 
@@ -445,7 +463,8 @@ def create_df_1year_known_2021(drop_unnecessary=True, drop_2021_unique_feats=Tru
 
 
 def create_df_1year_known(drop_unnecessary=True, drop_extra_factors=True, drop_2021_unique_feats=True, 
-                          drop_5y_ago=True, factors_2020=False, add_growth=True):
+                          drop_5y_ago=True, factors_2020=False, add_growth=True, count_log_fin_vals=True):
+    
     df_2020 = create_df_1year_known_2020(drop_unnecessary=drop_unnecessary, drop_extra_factors=drop_extra_factors)
     df_2021 = create_df_1year_known_2021(drop_unnecessary=drop_unnecessary, drop_2021_unique_feats=drop_2021_unique_feats,
                                          drop_5y_ago=drop_5y_ago, factors_2020=factors_2020)
@@ -458,5 +477,14 @@ def create_df_1year_known(drop_unnecessary=True, drop_extra_factors=True, drop_2
             result[col_name] = result.apply(partial(total_mean_growth, fin_feat_name=fin_feat), axis=1)
             fulfill_value = result[col_name].median(skipna=True)
             result.loc[result[col_name].isna(), col_name] = fulfill_value    
-    
+
+    # DANGER: don't swap with previous !!
+    if count_log_fin_vals:
+        for fin_feat in FINANCE_FEAT:
+            for i in range(-5, 0):
+                col_name = str(i) + ', ' + fin_feat + ', RUB'
+                if not col_name in result.columns.tolist():
+                    continue
+                result['log ' + col_name] = count_log_values(result[col_name].values)        
+
     return result
