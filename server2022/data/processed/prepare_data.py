@@ -462,8 +462,33 @@ def create_df_1year_known_2021(drop_unnecessary=True, drop_2021_unique_feats=Tru
     return df_
 
 
+def normalize_feat(df, col_name):
+    index_name = 'Наименование ДП'
+    df_2020 = df[df['year'] == '2020'].set_index(index_name)[[col_name]]
+    df_2021 = df[df['year'] == '2021'].set_index(index_name)[[col_name]]
+
+    joined = df_2021.join(df_2020, rsuffix=' prev')
+
+    def func(row):
+        if (np.abs(row[col_name]) < 10) or (np.abs(row[col_name + ' prev']) < 10):
+            return np.nan
+
+        return row[col_name + ' prev'] / row[col_name]
+
+    multiplier_values = joined.apply(func, axis=1)
+    if multiplier_values.isna().sum() > len(multiplier_values) / 2:
+        return df
+    multiplier = multiplier_values.median(skipna=True)
+
+    df.loc[df['year'] == '2020', 'Normalized ' + col_name] = df.loc[df['year'] == '2020', col_name]
+    df.loc[df['year'] == '2021', 'Normalized ' + col_name] = df.loc[df['year'] == '2021', col_name] * multiplier
+
+    return df
+
+
 def create_df_1year_known(drop_unnecessary=True, drop_extra_factors=True, drop_2021_unique_feats=True, 
-                          drop_5y_ago=True, factors_2020=False, add_growth=True, count_log_fin_vals=True):
+                          drop_5y_ago=True, factors_2020=False, add_growth=True, count_log_fin_vals=True,
+                          normalize_fin_columns=True):
     
     df_2020 = create_df_1year_known_2020(drop_unnecessary=drop_unnecessary, drop_extra_factors=drop_extra_factors)
     df_2021 = create_df_1year_known_2021(drop_unnecessary=drop_unnecessary, drop_2021_unique_feats=drop_2021_unique_feats,
@@ -486,5 +511,16 @@ def create_df_1year_known(drop_unnecessary=True, drop_extra_factors=True, drop_2
                 if not col_name in result.columns.tolist():
                     continue
                 result['log ' + col_name] = count_log_values(result[col_name].values)        
+
+    if normalize_fin_columns:
+        for col in result.columns.tolist():
+            flag = False
+            for fin_feat in FINANCE_FEAT:
+                if fin_feat in col:
+                    flag = True
+            if not flag:
+                continue
+            
+            result = normalize_feat(result.copy(), col)
 
     return result
