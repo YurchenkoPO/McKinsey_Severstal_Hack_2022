@@ -52,9 +52,12 @@ def data_split(df, create_new_clients=False, new_clients_size=NEW_CLIENTS_SIZE):
 def fit_predict(model, X_train, y_train, X_test, y_test, treshold=BASIC_TRESHOLD, plot_roc_auc=False):
     print(f'Fitting model {model} with treshold = {round(treshold, 2)}...')
     if str(model.__class__()).split('.')[-1].split()[0] == 'CatBoostClassifier':
-        X_train_, X_val, y_train_, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=RANDOM_STATE)
-        eval_set = Pool(X_val, y_val)
-        model.fit(X_train_, y_train_, eval_set=eval_set)
+        if model.get_params()['use_best_model']:
+            X_train_, X_val, y_train_, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=RANDOM_STATE)
+            eval_set = Pool(X_val, y_val)
+            model.fit(X_train_, y_train_, eval_set=eval_set)
+        else:
+            model.fit(X_train, y_train)
     else:
         model.fit(X_train, y_train)
     probas = model.predict_proba(X_test)[:, 1]
