@@ -5,3 +5,4 @@ xgboost==1.5
 scikit-learn==0.23
 shap
 seaborn
+hyperopt
