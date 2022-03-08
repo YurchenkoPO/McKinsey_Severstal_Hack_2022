@@ -80,6 +80,26 @@ class Feature_gen:
 
         return df
 
+    def ratio_finance_features_2(self, df, max_lookback, min_lookback):
+        for fin_feat in self.finance_feat:
+            current_cols = [fin_feat + f", относительный прирост за {year + 1} год" for year in
+                            range(max_lookback, min_lookback)]
+            for year in range(max_lookback, min_lookback):
+                df[fin_feat + f", относительный прирост за {year + 1} год"] = \
+                    (df[self.get_full_finance_feat_name(fin_feat, year + 1)] - df[
+                        self.get_full_finance_feat_name(fin_feat, year)]) \
+                    / df[self.get_full_finance_feat_name(fin_feat, year)]
+                # df[fin_feat + f", относительный прирост за {year} год"].fillna(0, inplace=True)
+
+                df.replace([np.inf], np.nan, inplace=True)
+                df.replace([-np.inf], np.nan, inplace=True)
+
+            for i in range(df.shape[0]):
+                for col in current_cols:
+                    df.loc[i, col] = df.iloc[i][current_cols].mean()
+
+        return df
+
     def scaling(self, df):
         for fin_feat in self.finance_feat:
             for year in range(self.max_lookback, self.min_lookback + 1):
@@ -101,7 +121,7 @@ class Feature_gen:
 
     def preprocessing_before_fitting(self, df):
         df = self.diff_finance_features(df, self.max_lookback, self.min_lookback)
-        df = self.ratio_finance_features(df, self.max_lookback, self.min_lookback)
+        df = self.ratio_finance_features_2(df, self.max_lookback, self.min_lookback)
 
         df = self.scaling(df)
 
