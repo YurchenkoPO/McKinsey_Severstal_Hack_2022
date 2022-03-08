@@ -157,7 +157,7 @@ def make_report(model, X, treshold=BASIC_TRESHOLD, use_cross_val=False, create_n
         
     print('\033[92m' + f'F1 = {round(f1, 4)}, Precision = {round(precision, 4)}, Recall = {round(recall, 4)}, Accuracy = {round(acc, 4)}, ROC_AUC = {round(roc_auc, 4)}' + '\033[0m')
     if to_file:
-        res = pd.DataFrame([[str(model.__class__()), model.get_params(), comment, round(treshold, 2), round(roc_auc, 4),
+        res = pd.DataFrame([[str(model.__class__()), model.get_params(), comment, round(treshold, 6), round(roc_auc, 4),
                              round(f1, 4), round(precision, 4), round(recall, 4), round(acc, 4), use_cross_val, 
                              round(roc_auc_std, 4), round(f1_std, 4), round(precision_std, 4), round(recall_std, 4), round(acc_std, 4)]], 
                            columns=['model', 'params', 'comment', 'treshold', 'roc_auc', 'f1', 'precision', 'recall', 'acc', 'use_cross_val', 
