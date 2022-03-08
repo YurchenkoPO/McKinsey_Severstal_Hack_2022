@@ -13,7 +13,7 @@ from catboost import Pool, CatBoostClassifier
 
 RANDOM_STATE = 1
 TEST_SIZE = 0.3
-NEW_CLIENTS_SIZE = 0.3
+NEW_CLIENTS_SIZE = 0.5
 BASIC_TRESHOLD = 0.6
 N_SPLITS = 5
 
@@ -24,7 +24,9 @@ def data_split(df, create_new_clients=False, new_clients_size=NEW_CLIENTS_SIZE):
     if create_new_clients:
         all_clients = df['Наименование ДП'].unique()
         new_ids = all_clients.copy()
-        np.random.shuffle(new_ids, random_state=RANDOM_STATE)[:int(len(all_clients) * new_clients_size)]
+        np.random.seed(RANDOM_STATE)
+        np.random.shuffle(new_ids)
+        new_ids = new_ids[:int(len(all_clients) * new_clients_size)]
         if '2019' in df.year.unique():
             train = df[df.year.isin(['2019', '2020'])]
             test = df[df.year == '2021']
