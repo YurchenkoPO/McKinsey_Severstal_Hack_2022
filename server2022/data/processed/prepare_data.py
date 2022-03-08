@@ -152,7 +152,7 @@ def create_df_2years_known():
 
 
 def create_df_0years_known(drop_unnecessary=True, drop_extra_factors=True, drop_2021_unique_feats=True, 
-                           drop_5y_ago=True):
+                           drop_5y_ago=True, drop_facts=True):
     """
     drop_unnecessary: whether to drop targets other than binary PDZ
     """
@@ -267,6 +267,9 @@ def create_df_0years_known(drop_unnecessary=True, drop_extra_factors=True, drop_
         cols = result.columns.tolist()
         cols_5y_ago = [x for x in cols if x.startswith('-5')]
         result.drop(columns=cols_5y_ago, inplace=True)
+        
+    if drop_facts:
+        result = result.loc[:, [col for col in result.columns if 'Факт' not in col]]
         
     return result
 
