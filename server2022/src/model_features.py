@@ -87,8 +87,13 @@ class Feature_gen:
 
     def diff_finance_features(self, df, max_lookback, min_lookback, use_bins=False):
         for fin_feat in self.finance_feat:
-            if fin_feat not in df.columns:
-                continue 
+            flag = False
+            for col in df.columns.tolist():
+                if fin_feat in col:
+                    flag=True
+
+            if not flag:
+                continue
             current_cols = [fin_feat + f"_,прирост_за_{year + 1}_год" for year in
                             range(max_lookback, min_lookback)]
             for year in range(max_lookback, min_lookback):
@@ -112,7 +117,12 @@ class Feature_gen:
 
     def ratio_finance_features(self, df, max_lookback, min_lookback):
         for fin_feat in self.finance_feat:
-            if fin_feat not in df.columns:
+            flag = False
+            for col in df.columns.tolist():
+                if fin_feat in col:
+                    flag=True
+
+            if not flag:
                 continue 
             current_cols = [fin_feat + f", относительный прирост за {year + 1} год" for year in
                             range(max_lookback, min_lookback)]
