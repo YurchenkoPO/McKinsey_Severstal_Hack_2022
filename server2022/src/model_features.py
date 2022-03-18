@@ -83,16 +83,24 @@ class Feature_gen:
 
     def diff_finance_features(self, df, max_lookback, min_lookback):
         for fin_feat in self.finance_feat:
+            current_cols = [fin_feat + f"_,прирост_за_{year + 1}_год" for year in
+                            range(max_lookback, min_lookback)]
             for year in range(max_lookback, min_lookback):
-                df[fin_feat + f" ,прирост за {year + 1} год"] = (
+                df[fin_feat + f"_,прирост_за_{year + 1}_год"] = (
                     df[self.get_full_finance_feat_name(fin_feat, year + 1)]
                     - df[self.get_full_finance_feat_name(fin_feat, year)]
                 )
 
-                scaler = MinMaxScaler()
-                df[fin_feat + f" ,прирост за {year + 1} год"] = scaler.fit_transform(
-                    df[fin_feat + f" ,прирост за {year + 1} год"].values.reshape(-1, 1)
-                )
+#                 scaler = MinMaxScaler()
+#                 df[fin_feat + f" ,прирост за {year + 1} год"] = scaler.fit_transform(
+#                     df[fin_feat + f" ,прирост за {year + 1} год"].values.reshape(-1, 1)
+#                 )
+
+            for i in range(df.shape[0]):
+                for col in current_cols:
+                    q1, q2, q3 = self.get_quantiles(df, col)
+                    df.loc[i, col] = self.get_bin_label(df.loc[i, col], q1, q2, q3)
+
         return df
 
 
@@ -135,18 +143,40 @@ class Feature_gen:
 
     def get_cat_feat_name(self, df):
         return [x for x in df.columns if 'Факт' in x]
+    
+    def get_quantiles(self, df, column):
+        #q_25, q_50, q_75 = df[column].values.mean() * 0.25, df[column].values.mean() * 0.5, df[column].values.mean() * 0.75
+        q_25, q_50, q_75 = np.quantile(df[column].values, 0.25), np.quantile(df[column].values, 0.5), np.quantile(df[column].values, 0.75)
+        return q_25, q_50, q_75
+    
+    def get_bin_label(self, value, q1, q2, q3):
+        if value <= q1:
+            return 0
+        elif value <= q2:
+            return 1
+        elif value <= q3:
+            return 2
+        else:
+            return 3 
+        
+    def bins(self, df, column):
+        return pd.Series(self.get_bin_label(row, column, self.get_quantiles(df, column)) for row in df.itertuples())
+    
 
-    def preprocessing_before_fitting(self, df, use_diff_features=False, use_ratio_features=True):
+    def preprocessing_before_fitting(self, df, use_diff_features=True, use_ratio_features=True):
         if use_diff_features:
             df = self.diff_finance_features(df, self.max_lookback, self.min_lookback)
         if use_ratio_features:
             df = self.ratio_finance_features(df, self.max_lookback, self.min_lookback)
 
-        #df = self.scaling(df)
- 
+        df = self.scaling(df)
+        for i in range(df.shape[0]):
+                for col in self.abs_feat:
+                    q1, q2, q3 = self.get_quantiles(df, col)
+                    df.loc[i, col] = self.get_bin_label(df.loc[i, col], q1, q2, q3)
 
         cat_col = self.get_cat_feat_name(df)
-        other_col = [x for x in df.columns if x not in cat_col + self.abs_feat]
+        other_col = [x for x in df.columns if x not in cat_col]
 
         df.fillna(0, inplace=True)
 
