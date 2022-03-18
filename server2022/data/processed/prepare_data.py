@@ -253,6 +253,8 @@ def create_df_0years_known(drop_unnecessary=True, drop_extra_factors=True, drop_
                                          for x in financial_report_columns}
     df_0years_known.rename(columns=financial_report_columns_renaming, inplace=True)
     df_0years_known['binary_target'] = df_0years_known['Кол-во раз ПДЗ за 2019 год, шт.'] != 0
+    df_0years_known['target_more30days'] = df_0years_known['Макс. ПДЗ за 2019 год, дней'] > 30
+    df_0years_known['target_more90days'] = df_0years_known['Макс. ПДЗ за 2019 год, дней'] > 90
     
     if drop_unnecessary:
         columns_to_drop = [
@@ -274,6 +276,8 @@ def create_df_0years_known(drop_unnecessary=True, drop_extra_factors=True, drop_
                                          for x in financial_report_columns}
     df_0years_known.rename(columns=financial_report_columns_renaming, inplace=True)
     df_0years_known['binary_target'] = df_0years_known['Кол-во раз ПДЗ за 2020 год, шт.'] != 0
+    df_0years_known['target_more30days'] = df_0years_known['Макс. ПДЗ за 2020 год, дней'] > 30
+    df_0years_known['target_more90days'] = df_0years_known['Макс. ПДЗ за 2020 год, дней'] > 90
     
     if drop_unnecessary:
         columns_to_drop = [
@@ -322,6 +326,9 @@ def create_df_0years_known(drop_unnecessary=True, drop_extra_factors=True, drop_
     
     df_0years_known['binary_target'] = df_0years_known[['ПДЗ 1-30', 'ПДЗ 31-90', 'ПДЗ 91-365', 
                                                         'ПДЗ более 365',]].sum(axis=1) > 0
+    df_0years_known['target_more30days'] = df_0years_known[['ПДЗ 31-90', 'ПДЗ 91-365', 
+                                                            'ПДЗ более 365']].sum(axis=1) > 0
+    df_0years_known['target_more90days'] = df_0years_known[['ПДЗ 91-365', 'ПДЗ более 365']].sum(axis=1) > 0
     
     if drop_unnecessary:
         columns_to_drop = [
@@ -411,7 +418,9 @@ def create_df_1year_known_2020(drop_unnecessary=True, drop_extra_factors=True):
                                          for x in financial_report_columns}
     df_.rename(columns=financial_report_columns_renaming, inplace=True)
     df_['binary_target'] = df_['Кол-во раз ПДЗ за 2020 год, шт.'] != 0
-
+    df_['target_more30days'] = df_['Макс. ПДЗ за 2020 год, дней'] > 30
+    df_['target_more90days'] = df_['Макс. ПДЗ за 2020 год, дней'] > 90
+    
     if drop_unnecessary:
         columns_to_drop = stats_PDZ_names(current_year)[0]
         df_.drop(columns=columns_to_drop, inplace=True)
@@ -448,8 +457,8 @@ def create_df_1year_known_2021(drop_unnecessary=True, drop_2021_unique_feats=Tru
     financial_report_columns_renaming = {x :f'{int(x[:4]) - current_year}' + x[4:] 
                                          for x in financial_report_columns}
     df_.rename(columns=financial_report_columns_renaming, inplace=True)
-    df_['binary_target'] = df_['Кол-во раз ПДЗ за 2020 год, шт.'] != 0
-
+    #df_['binary_target'] = df_['Кол-во раз ПДЗ за 2020 год, шт.'] != 0
+    
     columns_to_drop = [
         'Unnamed: 0', 
         'Макс. ПДЗ за 2019 год, дней',
@@ -470,9 +479,10 @@ def create_df_1year_known_2021(drop_unnecessary=True, drop_2021_unique_feats=Tru
     })
     df_.rename(columns=factors_renaming, inplace=True)
 
-    df_['binary_target'] = df_[['ПДЗ 1-30', 'ПДЗ 31-90', 'ПДЗ 91-365', 
-                                'ПДЗ более 365',]].sum(axis=1) > 0
-
+    df_['binary_target'] = df_[['ПДЗ 1-30', 'ПДЗ 31-90', 'ПДЗ 91-365', 'ПДЗ более 365',]].sum(axis=1) > 0
+    df_['target_more30days'] = df_[['ПДЗ 31-90', 'ПДЗ 91-365', 'ПДЗ более 365']].sum(axis=1) > 0
+    df_['target_more90days'] = df_[['ПДЗ 91-365', 'ПДЗ более 365']].sum(axis=1) > 0
+    
     if drop_unnecessary:
         columns_to_drop = [
             'ПДЗ 1-30',
