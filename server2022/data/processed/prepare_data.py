@@ -297,7 +297,7 @@ def drop_unneeded_companies_and_features(df):
 
 def create_df_0years_known(drop_unnecessary=True, drop_extra_factors=True, drop_2021_unique_feats=True, 
                            drop_5y_ago=True, drop_facts=True, add_growth=True, count_log_fin_vals=True,
-                           normalize_fin_columns=True, drop_zeros=True):
+                           normalize_fin_columns=False, drop_zeros=True):
     """
     drop_unnecessary: whether to drop targets other than binary PDZ
     """
@@ -431,6 +431,12 @@ def create_df_0years_known(drop_unnecessary=True, drop_extra_factors=True, drop_
         
     if add_growth:
         for fin_feat in FINANCE_FEAT:
+            flag=False
+            for col in result.columns.tolist():
+                if fin_feat in col:
+                    flag=True
+            if not flag:
+                continue            
             col_name = fin_feat + ' total mean growth'
             result[col_name] = result.apply(partial(total_mean_growth, fin_feat_name=fin_feat), axis=1)
             fulfill_value = result[col_name].median(skipna=True)
@@ -439,6 +445,12 @@ def create_df_0years_known(drop_unnecessary=True, drop_extra_factors=True, drop_
     # DANGER: don't swap with previous !!
     if count_log_fin_vals:
         for fin_feat in FINANCE_FEAT:
+            flag=False
+            for col in result.columns.tolist():
+                if fin_feat in col:
+                    flag=True
+            if not flag:
+                continue            
             for i in range(-5, 0):
                 col_name = str(i) + ', ' + fin_feat + ', RUB'
                 if not col_name in result.columns.tolist():
@@ -611,7 +623,7 @@ def normalize_feat(df, col_name):
 
 def create_df_1year_known(drop_unnecessary=True, drop_extra_factors=True, drop_2021_unique_feats=True, 
                           drop_5y_ago=True, factors_2020=False, add_growth=True, count_log_fin_vals=True,
-                          normalize_fin_columns=True, drop_zeros=True):
+                          normalize_fin_columns=False, drop_zeros=True):
     
     df_2020 = create_df_1year_known_2020(drop_unnecessary=drop_unnecessary, drop_extra_factors=drop_extra_factors,
                                          drop_zeros=drop_zeros)
@@ -622,6 +634,12 @@ def create_df_1year_known(drop_unnecessary=True, drop_extra_factors=True, drop_2
     
     if add_growth:
         for fin_feat in FINANCE_FEAT:
+            flag=False
+            for col in result.columns.tolist():
+                if fin_feat in col:
+                    flag=True
+            if not flag:
+                continue
             col_name = fin_feat + ' total mean growth'
             result[col_name] = result.apply(partial(total_mean_growth, fin_feat_name=fin_feat), axis=1)
             fulfill_value = result[col_name].median(skipna=True)
@@ -630,6 +648,12 @@ def create_df_1year_known(drop_unnecessary=True, drop_extra_factors=True, drop_2
     # DANGER: don't swap with previous !!
     if count_log_fin_vals:
         for fin_feat in FINANCE_FEAT:
+            flag=False
+            for col in result.columns.tolist():
+                if fin_feat in col:
+                    flag=True
+            if not flag:
+                continue
             for i in range(-5, 0):
                 col_name = str(i) + ', ' + fin_feat + ', RUB'
                 if not col_name in result.columns.tolist():
