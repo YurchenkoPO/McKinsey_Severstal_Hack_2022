@@ -1,0 +1,8 @@
+catboost==1.0
+numpy==1.19.5
+pandas==1.2
+xgboost==1.5
+scikit-learn==0.23
+shap
+seaborn
+hyperopt
