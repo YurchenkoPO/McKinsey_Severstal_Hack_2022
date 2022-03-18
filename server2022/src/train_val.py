@@ -225,7 +225,7 @@ def hyperopt_for_catboost(X):
         params['learning_rate'] = space['learning_rate']
         # params['class_w'] = space['class_w']
         params['depth'] = int(space['depth'])
-        # params['l2_leaf_reg'] = space['l2_leaf_reg']
+        params['l2_leaf_reg'] = space['l2_leaf_reg']
         # params['iterations'] = int(space['iterations'])
         return params
     
@@ -244,15 +244,15 @@ def hyperopt_for_catboost(X):
         params_str = str.join(' ', ['{}={}'.format(k, v) for k, v in sorted_params])
         print('Params: {}'.format(params_str) )
 
-        model = CatBoostClassifier(iterations=2000, #params['iterations'],
+        model = CatBoostClassifier(iterations=500, #params['iterations'],
                                    depth=params['depth'], #5
-                                   l2_leaf_reg=5, #params['l2_leaf_reg'], 
+                                   l2_leaf_reg=params['l2_leaf_reg'], 
                                    learning_rate=params['learning_rate'],
                                    loss_function='Logloss',
                                    use_best_model=False,
                                    eval_metric='AUC',
                                    verbose=False,
-                                   class_weights=[1, 0.01], # params['class_w']
+                                   # class_weights=[1, 0.01], # params['class_w']
                                    random_seed=RANDOM_STATE,
                                     )
 
@@ -274,9 +274,9 @@ def hyperopt_for_catboost(X):
     space = {
         'learning_rate': hp.loguniform('learning_rate', -6, -1),
         # 'class_w': hp.uniform('class_w', 1e-4, 1e-1),
-        'depth': hp.quniform("depth", 4, 8, 1),
+        'depth': hp.quniform("depth", 2, 7, 1),
         # 'iterations': hp.quniform('iterations', 200, 5000, 1),
-        # 'l2_leaf_reg': hp.uniform('l2_leaf_reg', 3, 8),
+        'l2_leaf_reg': hp.uniform('l2_leaf_reg', 3, 10),
     }
 
     trials = Trials()
