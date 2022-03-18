@@ -87,6 +87,13 @@ class Feature_gen:
 
     def diff_finance_features(self, df, max_lookback, min_lookback, use_bins=False):
         for fin_feat in self.finance_feat:
+            flag = False
+            for col in df.columns.tolist():
+                if fin_feat in col:
+                    flag=True
+
+            if not flag:
+                continue
             current_cols = [fin_feat + f"_,прирост_за_{year + 1}_год" for year in
                             range(max_lookback, min_lookback)]
             for year in range(max_lookback, min_lookback):
@@ -110,6 +117,13 @@ class Feature_gen:
 
     def ratio_finance_features(self, df, max_lookback, min_lookback):
         for fin_feat in self.finance_feat:
+            flag = False
+            for col in df.columns.tolist():
+                if fin_feat in col:
+                    flag=True
+
+            if not flag:
+                continue 
             current_cols = [fin_feat + f", относительный прирост за {year + 1} год" for year in
                             range(max_lookback, min_lookback)]
             for year in range(max_lookback, min_lookback):
@@ -182,6 +196,8 @@ class Feature_gen:
                         
         for i in range(df.shape[0]):
             for col in self.positive_fin_feat:
+                if col not in df.columns:
+                    continue 
                 median = np.quantile(df[col].values, 0.5)
                 if df.loc[i, col] == 0:
                     df.loc[i, col] = median

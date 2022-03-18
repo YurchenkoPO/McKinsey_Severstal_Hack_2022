@@ -172,12 +172,12 @@ def make_report(model, X, target_col=TARGET_COL, threshold=BASIC_threshold, use_
             except:
                 pass
     
-    print(f'\nTRAIN: F1 = {round(train_f1, 4)}, Precision = {round(train_precision, 4)}, Recall = {round(train_recall, 4)}, Accuracy = {round(train_acc, 4)}, ROC_AUC = {round(train_roc_auc, 4)}')
-    print('\033[92m' + f'TEST: F1 = {round(f1, 4)}, Precision = {round(precision, 4)}, Recall = {round(recall, 4)}, Accuracy = {round(acc, 4)}, ROC_AUC = {round(roc_auc, 4)}' + '\033[0m' + '\n')
+    print(f'\nTRAIN: F1 = {round(train_f1, 3)}, Precision = {round(train_precision, 3)}, Recall = {round(train_recall, 3)}, Accuracy = {round(train_acc, 3)}, ROC_AUC = {round(train_roc_auc, 3)}')
+    print('\033[92m' + f'TEST: F1 = {round(f1, 3)}, Precision = {round(precision, 3)}, Recall = {round(recall, 3)}, Accuracy = {round(acc, 3)}, ROC_AUC = {round(roc_auc, 3)}' + '\033[0m' + '\n')
     if to_file:
-        res = pd.DataFrame([[str(model.__class__()), model.get_params(), comment, round(threshold, 6), round(roc_auc, 4),
-                             round(f1, 4), round(precision, 4), round(recall, 4), round(acc, 4), use_cross_val, 
-                             round(roc_auc_std, 4), round(f1_std, 4), round(precision_std, 4), round(recall_std, 4), round(acc_std, 4)]], 
+        res = pd.DataFrame([[str(model.__class__()), model.get_params(), comment, round(threshold, 6), round(roc_auc, 3),
+                             round(f1, 3), round(precision, 3), round(recall, 3), round(acc, 3), use_cross_val, 
+                             round(roc_auc_std, 3), round(f1_std, 3), round(precision_std, 3), round(recall_std, 3), round(acc_std, 3)]], 
                            columns=['model', 'params', 'comment', 'threshold', 'roc_auc', 'f1', 'precision', 'recall', 'acc', 'use_cross_val', 
                                     'roc_auc_std', 'f1_std', 'precision_std', 'recall_std', 'acc_std'])
         if os.path.exists(file_path):
@@ -225,7 +225,7 @@ def hyperopt_for_catboost(X):
         params['learning_rate'] = space['learning_rate']
         # params['class_w'] = space['class_w']
         params['depth'] = int(space['depth'])
-        # params['l2_leaf_reg'] = space['l2_leaf_reg']
+        params['l2_leaf_reg'] = space['l2_leaf_reg']
         # params['iterations'] = int(space['iterations'])
         return params
     
@@ -244,15 +244,15 @@ def hyperopt_for_catboost(X):
         params_str = str.join(' ', ['{}={}'.format(k, v) for k, v in sorted_params])
         print('Params: {}'.format(params_str) )
 
-        model = CatBoostClassifier(iterations=2000, #params['iterations'],
+        model = CatBoostClassifier(iterations=500, #params['iterations'],
                                    depth=params['depth'], #5
-                                   l2_leaf_reg=5, #params['l2_leaf_reg'], 
+                                   l2_leaf_reg=params['l2_leaf_reg'], 
                                    learning_rate=params['learning_rate'],
                                    loss_function='Logloss',
                                    use_best_model=False,
                                    eval_metric='AUC',
                                    verbose=False,
-                                   class_weights=[1, 0.01], # params['class_w']
+                                   # class_weights=[1, 0.01], # params['class_w']
                                    random_seed=RANDOM_STATE,
                                     )
 
@@ -274,9 +274,9 @@ def hyperopt_for_catboost(X):
     space = {
         'learning_rate': hp.loguniform('learning_rate', -6, -1),
         # 'class_w': hp.uniform('class_w', 1e-4, 1e-1),
-        'depth': hp.quniform("depth", 4, 8, 1),
+        'depth': hp.quniform("depth", 2, 7, 1),
         # 'iterations': hp.quniform('iterations', 200, 5000, 1),
-        # 'l2_leaf_reg': hp.uniform('l2_leaf_reg', 3, 8),
+        'l2_leaf_reg': hp.uniform('l2_leaf_reg', 3, 10),
     }
 
     trials = Trials()
