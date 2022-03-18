@@ -13,8 +13,8 @@ from catboost import Pool, CatBoostClassifier
 from hyperopt import hp
 from hyperopt import fmin, tpe, STATUS_OK, STATUS_FAIL, Trials
 
-TARGET_COL = '' #'binary_target'
-ALL_TARGET_COLS = ['binary_target']#, 'target_more30days', 'target_more90days']
+TARGET_COL = 'binary_target'
+ALL_TARGET_COLS = ['binary_target', 'target_more30days', 'target_more90days']
 TARGET_DICT = {'1': 'binary_target', '2': 'target_more30days', '3': 'target_more90days'}
 
 RANDOM_STATE = 1
