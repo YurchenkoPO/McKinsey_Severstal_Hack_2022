@@ -149,6 +149,56 @@ factors_2021 = [
 ]
 
 
+FIN_FEATS_TO_LEAVE = [
+    "2018, Основные средства , RUB",
+    "2019, Основные средства , RUB",
+    "2020, Основные средства , RUB",
+    
+    "2018, Внеоборотные активы, RUB",
+    "2019, Внеоборотные активы, RUB",
+    "2020, Внеоборотные активы, RUB",
+    
+    "2018, Дебиторская задолженность, RUB",
+    "2019, Дебиторская задолженность, RUB",
+    "2020, Дебиторская задолженность, RUB",
+    
+    "2018, Оборотные активы, RUB",
+    "2019, Оборотные активы, RUB",
+    "2020, Оборотные активы, RUB",
+    
+    "2018, Капитал и резервы, RUB",
+    "2019, Капитал и резервы, RUB",
+    "2020, Капитал и резервы, RUB",
+    
+    "2018, Кредиторская задолженность, RUB",
+    "2019, Кредиторская задолженность, RUB",
+    "2020, Кредиторская задолженность, RUB",
+    
+    "2019, Краткосрочные обязательства, RUB",
+    "2019, Краткосрочные обязательства, RUB",
+    "2020, Краткосрочные обязательства, RUB",
+    
+    "2018, Выручка, RUB",
+    "2019, Выручка, RUB",
+    "2020, Выручка, RUB",
+    
+    "2018, Себестоимость продаж, RUB",
+    "2019, Себестоимость продаж, RUB",
+    "2020, Себестоимость продаж, RUB",
+    
+    "2018, Кредиторская задолженность, RUB",
+    "2019, Кредиторская задолженность, RUB",
+    "2020, Кредиторская задолженность, RUB",
+    
+    "2018, Прибыль (убыток) до налогообложения , RUB",
+    "2019, Прибыль (убыток) до налогообложения , RUB",
+    "2020, Прибыль (убыток) до налогообложения , RUB",
+    
+    "2018, Прибыль (убыток) от продажи, RUB",
+    "2019, Прибыль (убыток) от продажи, RUB",
+    "2019, Прибыль (убыток) от продажи, RUB",
+]
+
 
 #df_2019 = pd.read_csv('./agents2019.csv')
 #df_2020 = pd.read_csv('./agents2020.csv')
@@ -236,9 +286,18 @@ def normalize_feat_0years_known(df, col_name):
     return df
 
 
+def drop_unneeded_companies_and_features(df):
+    df_res = df.copy()
+    feats_to_live = list(set(FIN_FEATS_TO_LEAVE) & set(df_res.columns.tolist()))
+    df_res = df_res[(df_res[feats_to_live].abs() > 10).all(axis=1)]
+    cols_to_drop = list((set(financial_report_columns) - set(feats_to_live)) & set(df_res.columns.tolist()))
+    df_res.drop(columns=cols_to_drop, inplace=True)
+    return df_res
+
+
 def create_df_0years_known(drop_unnecessary=True, drop_extra_factors=True, drop_2021_unique_feats=True, 
                            drop_5y_ago=True, drop_facts=True, add_growth=True, count_log_fin_vals=True,
-                           normalize_fin_columns=True):
+                           normalize_fin_columns=True, drop_zeros=True):
     """
     drop_unnecessary: whether to drop targets other than binary PDZ
     """
@@ -247,6 +306,8 @@ def create_df_0years_known(drop_unnecessary=True, drop_extra_factors=True, drop_
     
     current_year = 2019
     df_0years_known = pd.read_csv(file_path.parent.parent / 'raw/agents2019.csv')
+    if drop_zeros:
+        df_0years_known = drop_unneeded_companies_and_features(df_0years_known)
     df_0years_known['year'] = str(current_year)
     df_0years_known.drop(columns=['Unnamed: 0',], inplace=True)
     financial_report_columns_renaming = {x :f'{int(x[:4]) - current_year}' + x[4:] 
@@ -271,6 +332,8 @@ def create_df_0years_known(drop_unnecessary=True, drop_extra_factors=True, drop_
     
     current_year = 2020
     df_0years_known = pd.read_csv(file_path.parent.parent / 'raw/agents2020.csv')
+    if drop_zeros:
+        df_0years_known = drop_unneeded_companies_and_features(df_0years_known)    
     df_0years_known['year'] = str(current_year)
     financial_report_columns_renaming = {x :f'{int(x[:4]) - current_year}' + x[4:] 
                                          for x in financial_report_columns}
@@ -294,6 +357,8 @@ def create_df_0years_known(drop_unnecessary=True, drop_extra_factors=True, drop_
     
     current_year = 2021
     df_0years_known = pd.read_csv(file_path.parent.parent / 'raw/agents2021.csv')
+    if drop_zeros:
+        df_0years_known = drop_unneeded_companies_and_features(df_0years_known)    
     df_0years_known['year'] = str(current_year)
 
     columns_to_drop = [
@@ -409,10 +474,12 @@ def stats_PDZ_names(year):
     return [x.format(year) for x in names], {x.format(year): x.format(-1) for x in names}
 
 
-def create_df_1year_known_2020(drop_unnecessary=True, drop_extra_factors=True):
+def create_df_1year_known_2020(drop_unnecessary=True, drop_extra_factors=True, drop_zeros=True):
     current_year = 2020
     file_path = Path(__file__)
     df_ = pd.read_csv(file_path.parent.parent / 'raw/agents2020.csv')
+    if drop_zeros:
+        df_ = drop_unneeded_companies_and_features(df_)
     df_['year'] = str(current_year)
     financial_report_columns_renaming = {x :f'{int(x[:4]) - current_year}' + x[4:] 
                                          for x in financial_report_columns}
@@ -449,10 +516,12 @@ def create_df_1year_known_2020(drop_unnecessary=True, drop_extra_factors=True):
 
 
 def create_df_1year_known_2021(drop_unnecessary=True, drop_2021_unique_feats=True, drop_5y_ago=True,
-                               factors_2020=False):
+                               factors_2020=False, drop_zeros=True):
     current_year = 2021
     file_path = Path(__file__)
     df_ = pd.read_csv(file_path.parent.parent / 'raw/agents2021.csv')
+    if drop_zeros:
+        df_ = drop_unneeded_companies_and_features(df_)    
     df_['year'] = str(current_year)
     financial_report_columns_renaming = {x :f'{int(x[:4]) - current_year}' + x[4:] 
                                          for x in financial_report_columns}
@@ -542,11 +611,12 @@ def normalize_feat(df, col_name):
 
 def create_df_1year_known(drop_unnecessary=True, drop_extra_factors=True, drop_2021_unique_feats=True, 
                           drop_5y_ago=True, factors_2020=False, add_growth=True, count_log_fin_vals=True,
-                          normalize_fin_columns=True):
+                          normalize_fin_columns=True, drop_zeros=True):
     
-    df_2020 = create_df_1year_known_2020(drop_unnecessary=drop_unnecessary, drop_extra_factors=drop_extra_factors)
+    df_2020 = create_df_1year_known_2020(drop_unnecessary=drop_unnecessary, drop_extra_factors=drop_extra_factors,
+                                         drop_zeros=drop_zeros)
     df_2021 = create_df_1year_known_2021(drop_unnecessary=drop_unnecessary, drop_2021_unique_feats=drop_2021_unique_feats,
-                                         drop_5y_ago=drop_5y_ago, factors_2020=factors_2020)
+                                         drop_5y_ago=drop_5y_ago, factors_2020=factors_2020, drop_zeros=drop_zeros)
 
     result = pd.concat([df_2020, df_2021], axis=0).reset_index(drop=True)
     
