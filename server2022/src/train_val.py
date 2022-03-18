@@ -26,7 +26,7 @@ N_SPLITS = 5
 REPORT_FILE_PATH = '../reports/report.csv'
 
 
-def data_split(df, target_col=TARGET_COL, create_new_clients=False, new_clients_size=NEW_CLIENTS_SIZE):
+def data_split(df, cols2drop, target_col=TARGET_COL, create_new_clients=False, new_clients_size=NEW_CLIENTS_SIZE):
     if create_new_clients:
         all_clients = df['Наименование ДП'].unique()
         new_ids = all_clients.copy()
@@ -50,8 +50,8 @@ def data_split(df, target_col=TARGET_COL, create_new_clients=False, new_clients_
     
     y_train = train[target_col].astype(int)
     y_test = test[target_col].astype(int)
-    train = train.drop(columns=['year', 'Наименование ДП'] + ALL_TARGET_COLS)
-    test = test.drop(columns=['year', 'Наименование ДП'] + ALL_TARGET_COLS)
+    train = train.drop(columns=['year', 'Наименование ДП'] + ALL_TARGET_COLS + cols2drop)
+    test = test.drop(columns=['year', 'Наименование ДП'] + ALL_TARGET_COLS + cols2drop)
     return train, test, y_train, y_test
 
 
@@ -186,15 +186,15 @@ def make_report(model, X, target_col=TARGET_COL, threshold=BASIC_threshold, use_
             res.to_csv(file_path, index=False)
             
             
-def make_report_with_best_threshold(model, df, create_new_clients=False, 
-                                    to_file=True, file_path=REPORT_FILE_PATH, comment=''):
+def make_report_with_best_threshold(model, df, col2drop=[], create_new_clients=False, 
+                                    to_file=True, file_path=REPORT_FILE_PATH, comment='', ):
     
     print('Choose target: 1 - binary_target, 2 - target_more30days, 3 - target_more90days:')
     target_col = TARGET_DICT[input()]
     
     make_report(model, df, target_col=target_col, threshold=0.5, to_file=False, create_new_clients=create_new_clients, need_val=True, to_plot=False)
 
-    X_train, X_test, y_train, y_test = data_split(df, target_col=target_col, create_new_clients=create_new_clients)
+    X_train, X_test, y_train, y_test = data_split(df, col2drop, target_col=target_col, create_new_clients=create_new_clients)
     X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=RANDOM_STATE)
     probas = model.predict_proba(X_val)[:, 1]
     
