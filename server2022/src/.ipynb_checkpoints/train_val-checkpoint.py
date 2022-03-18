@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 plt.style.use('seaborn')
 import shap
 
-from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_score, RocCurveDisplay, accuracy_score, roc_auc_score, log_loss
+from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_score, RocCurveDisplay, accuracy_score, roc_curve, log_loss
 from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
 from sklearn.ensemble import RandomForestClassifier
 from catboost import Pool, CatBoostClassifier
@@ -15,8 +15,8 @@ from hyperopt import fmin, tpe, STATUS_OK, STATUS_FAIL, Trials
 
 RANDOM_STATE = 1
 TEST_SIZE = 0.3
-NEW_CLIENTS_SIZE = 0.5
-BASIC_TRESHOLD = 0.6
+NEW_CLIENTS_SIZE = 0.4
+BASIC_threshold = 0.6
 N_SPLITS = 5
 
 REPORT_FILE_PATH = '../reports/report.csv'
@@ -51,9 +51,9 @@ def data_split(df, create_new_clients=False, new_clients_size=NEW_CLIENTS_SIZE):
     return train, test, y_train, y_test
 
 
-def fit_predict(model, X_train, y_train, X_test, y_test, treshold=BASIC_TRESHOLD, plot_roc_auc=False):
-    print(f'Fitting model {model} with treshold = {round(treshold, 2)}...')
-    if str(model.__class__()).split('.')[-1].split()[0] == 'CatBoostClassifier':
+def fit_predict(model, X_train, y_train, X_test, y_test, threshold=BASIC_threshold, plot_roc_auc=False):
+    print(f'Fitting model {model} with threshold = {round(threshold, 5)}...')
+    if 'CatBoostClassifier' in  str(model.__class__()):
         if model.get_params()['use_best_model']:
             X_train_, X_val, y_train_, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=RANDOM_STATE)
             eval_set = Pool(X_val, y_val)
@@ -64,8 +64,8 @@ def fit_predict(model, X_train, y_train, X_test, y_test, treshold=BASIC_TRESHOLD
         model.fit(X_train, y_train)
     probas = model.predict_proba(X_test)[:, 1]
     preds = probas.copy()
-    preds[np.where(preds < treshold)] = 0
-    preds[np.where(preds >= treshold)] = 1
+    preds[np.where(preds < threshold)] = 0
+    preds[np.where(preds >= threshold)] = 1
     if plot_roc_auc:
         disp = RocCurveDisplay.from_estimator(model, X_test, y_test)
         plt.show()
@@ -85,34 +85,34 @@ def make_scores(y_test, preds, probas=None, use_probas=True):
     return f1, precision, recall, acc, roc_auc
 
 
-def validate_treshold(model, X, create_new_clients=False):
+def validate_threshold(model, X, create_new_clients=False):
     # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE)
     X_train, X_test, y_train, y_test = data_split(X, create_new_clients=create_new_clients)
-    treshold_list = np.arange(0.1, 1, 0.005)
+    threshold_list = np.arange(0.1, 1, 0.005)
     f1_list, precision_list, recall_list, acc_list = [], [], [], []
-    model, preds, probas = fit_predict(model, X_train, y_train, X_test, y_test, treshold=BASIC_TRESHOLD)
-    for treshold in treshold_list:
+    model, preds, probas = fit_predict(model, X_train, y_train, X_test, y_test, threshold=BASIC_threshold)
+    for threshold in threshold_list:
         preds = probas.copy()
-        preds[np.where(preds < treshold)] = 0
-        preds[np.where(preds >= treshold)] = 1
+        preds[np.where(preds < threshold)] = 0
+        preds[np.where(preds >= threshold)] = 1
         f1, precision, recall, acc, roc_auc = make_scores(y_test, preds, probas=probas)
         f1_list.append(f1)
         precision_list.append(precision)
         recall_list.append(recall)
         acc_list.append(acc)
     fig, ax = plt.subplots(figsize=(12, 7))
-    ax.plot(treshold_list, f1_list, 'r', label='f1')
-    ax.plot(treshold_list, precision_list, 'b', label='precision')
-    ax.plot(treshold_list, recall_list, 'g', label='recall')
-    ax.plot(treshold_list, acc_list, 'k', label='accuracy')
-    ax.set_xlabel('treshold')
+    ax.plot(threshold_list, f1_list, 'r', label='f1')
+    ax.plot(threshold_list, precision_list, 'b', label='precision')
+    ax.plot(threshold_list, recall_list, 'g', label='recall')
+    ax.plot(threshold_list, acc_list, 'k', label='accuracy')
+    ax.set_xlabel('threshold')
     ax.set_ylabel('Score')
     ax.legend()
     plt.show()
     
 
-def make_report(model, X, treshold=BASIC_TRESHOLD, use_cross_val=False, create_new_clients=False, 
-                to_file=True, file_path=REPORT_FILE_PATH, comment='', need_val=False):
+def make_report(model, X, threshold=BASIC_threshold, use_cross_val=False, create_new_clients=False, 
+                to_file=True, file_path=REPORT_FILE_PATH, comment='', need_val=False, to_plot=True):
     if use_cross_val:
         raise NotImplementedError('No need because test data is always 2021 and we can`t use it as train data')
         skf = StratifiedKFold(n_splits=N_SPLITS, random_state=RANDOM_STATE, shuffle=True)
@@ -120,7 +120,7 @@ def make_report(model, X, treshold=BASIC_TRESHOLD, use_cross_val=False, create_n
         for train_index, test_index in skf.split(X, y):
             X_train, X_test = X.iloc[train_index], X.iloc[test_index]
             y_train, y_test = y[train_index], y[test_index]
-            model, preds, probas = fit_predict(model, X_train, y_train, X_test, y_test, treshold=treshold, plot_roc_auc=False)
+            model, preds, probas = fit_predict(model, X_train, y_train, X_test, y_test, threshold=threshold, plot_roc_auc=False)
             f1, precision, recall, acc, roc_auc = make_scores(y_test, preds, probas=probas)
             f1_list.append(f1)
             precision_list.append(precision)
@@ -144,31 +144,58 @@ def make_report(model, X, treshold=BASIC_TRESHOLD, use_cross_val=False, create_n
         X_train, X_test, y_train, y_test = data_split(X, create_new_clients=create_new_clients)
         if need_val:
             X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=RANDOM_STATE)
-        model, preds, probas = fit_predict(model, X_train, y_train, X_test, y_test, treshold=treshold, plot_roc_auc=True)
+        model, preds, probas = fit_predict(model, X_train, y_train, X_test, y_test, threshold=threshold, plot_roc_auc=to_plot)
         f1, precision, recall, acc, roc_auc = make_scores(y_test, preds, probas=probas)
         f1_std, precision_std, recall_std, acc_std, roc_auc_std = 0, 0, 0, 0, 0
         
         #feature_importance
-        try:
-            explainer = shap.TreeExplainer(model)
-            shap_values = explainer.shap_values(X_test)
-            #shap.force_plot(explainer.expected_value, shap_values[0,:], X_test.iloc[0,:])
-            shap.summary_plot(shap_values, X_test)
-            plt.show()
-        except:
-            pass
+        if to_plot:
+            try:
+                explainer = shap.TreeExplainer(model)
+                shap_values = explainer.shap_values(X_test)
+                #shap.force_plot(explainer.expected_value, shap_values[0,:], X_test.iloc[0,:])
+                shap.summary_plot(shap_values, X_test)
+                plt.show()
+            except:
+                pass
         
     print('\033[92m' + f'F1 = {round(f1, 4)}, Precision = {round(precision, 4)}, Recall = {round(recall, 4)}, Accuracy = {round(acc, 4)}, ROC_AUC = {round(roc_auc, 4)}' + '\033[0m')
     if to_file:
-        res = pd.DataFrame([[str(model.__class__()), model.get_params(), comment, round(treshold, 6), round(roc_auc, 4),
+        res = pd.DataFrame([[str(model.__class__()), model.get_params(), comment, round(threshold, 6), round(roc_auc, 4),
                              round(f1, 4), round(precision, 4), round(recall, 4), round(acc, 4), use_cross_val, 
                              round(roc_auc_std, 4), round(f1_std, 4), round(precision_std, 4), round(recall_std, 4), round(acc_std, 4)]], 
-                           columns=['model', 'params', 'comment', 'treshold', 'roc_auc', 'f1', 'precision', 'recall', 'acc', 'use_cross_val', 
+                           columns=['model', 'params', 'comment', 'threshold', 'roc_auc', 'f1', 'precision', 'recall', 'acc', 'use_cross_val', 
                                     'roc_auc_std', 'f1_std', 'precision_std', 'recall_std', 'acc_std'])
         if os.path.exists(file_path):
             res.to_csv(file_path, mode='a', header=False, index=False)
         else:
             res.to_csv(file_path, index=False)
+            
+            
+def make_report_with_best_threshold(model, df, create_new_clients=False, 
+                                    to_file=True, file_path=REPORT_FILE_PATH, comment=''):
+
+    make_report(model, df, threshold=0.5, to_file=False, create_new_clients=create_new_clients, need_val=True, to_plot=False)
+    plt.close()
+
+    X_train, X_test, y_train, y_test = data_split(df)
+    X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=RANDOM_STATE)
+    probas = model.predict_proba(X_val)[:, 1]
+    
+    fpr, tpr, threshold = roc_curve(y_val, probas)
+    i = np.arange(len(tpr))
+    roc = pd.DataFrame(
+        {
+            "tf": pd.Series(tpr - (1 - fpr), index=i),
+            "tpr": pd.Series(tpr, index=i),
+            "fpr": pd.Series(fpr, index=i),
+            "threshold": pd.Series(threshold, index=i),
+        }
+    )
+    roc_t = roc.iloc[(roc.tf - 0).abs().argsort()[:1]]
+
+    make_report(model, df, threshold=np.mean(list(roc_t["threshold"])), to_file=to_file, file_path=file_path, 
+                comment=comment, create_new_clients=create_new_clients, need_val=False)
 
             
 def hyperopt_for_catboost(X):
@@ -210,7 +237,7 @@ def hyperopt_for_catboost(X):
                                    random_seed=RANDOM_STATE,
                                     )
 
-        model, preds, probas = fit_predict(model, X_train, y_train, X_test, y_test, treshold=0.5, plot_roc_auc=False)
+        model, preds, probas = fit_predict(model, X_train, y_train, X_test, y_test, threshold=0.5, plot_roc_auc=False)
         f1, precision, recall, acc, roc_auc = make_scores(y_test, preds, probas=probas)
         test_loss = log_loss(y_test, preds, labels=[0, 1])
 

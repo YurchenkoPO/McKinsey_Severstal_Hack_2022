@@ -81,7 +81,7 @@ class Feature_gen:
     def get_full_finance_feat_name(self, fin_feat, i):
         return str(i) + ', ' + fin_feat + ', RUB'
 
-    def diff_finance_features(self, df, max_lookback, min_lookback):
+    def diff_finance_features(self, df, max_lookback, min_lookback, use_bins=False):
         for fin_feat in self.finance_feat:
             current_cols = [fin_feat + f"_,прирост_за_{year + 1}_год" for year in
                             range(max_lookback, min_lookback)]
@@ -95,11 +95,11 @@ class Feature_gen:
 #                 df[fin_feat + f" ,прирост за {year + 1} год"] = scaler.fit_transform(
 #                     df[fin_feat + f" ,прирост за {year + 1} год"].values.reshape(-1, 1)
 #                 )
-
-            for i in range(df.shape[0]):
-                for col in current_cols:
-                    q1, q2, q3 = self.get_quantiles(df, col)
-                    df.loc[i, col] = self.get_bin_label(df.loc[i, col], q1, q2, q3)
+            if use_bins:
+                for i in range(df.shape[0]):
+                    for col in current_cols:
+                        q1, q2, q3 = self.get_quantiles(df, col)
+                        df.loc[i, col] = self.get_bin_label(df.loc[i, col], q1, q2, q3)
 
         return df
 
@@ -163,17 +163,18 @@ class Feature_gen:
         return pd.Series(self.get_bin_label(row, column, self.get_quantiles(df, column)) for row in df.itertuples())
     
 
-    def preprocessing_before_fitting(self, df, use_diff_features=True, use_ratio_features=True):
+    def preprocessing_before_fitting(self, df, use_diff_features=True, use_ratio_features=True, use_bins=False):
         if use_diff_features:
-            df = self.diff_finance_features(df, self.max_lookback, self.min_lookback)
+            df = self.diff_finance_features(df, self.max_lookback, self.min_lookback, use_bins)
         if use_ratio_features:
             df = self.ratio_finance_features(df, self.max_lookback, self.min_lookback)
 
-        df = self.scaling(df)
-        for i in range(df.shape[0]):
-                for col in self.abs_feat:
-                    q1, q2, q3 = self.get_quantiles(df, col)
-                    df.loc[i, col] = self.get_bin_label(df.loc[i, col], q1, q2, q3)
+        #df = self.scaling(df)
+        if use_bins:
+            for i in range(df.shape[0]):
+                    for col in self.abs_feat:
+                        q1, q2, q3 = self.get_quantiles(df, col)
+                        df.loc[i, col] = self.get_bin_label(df.loc[i, col], q1, q2, q3)
 
         cat_col = self.get_cat_feat_name(df)
         other_col = [x for x in df.columns if x not in cat_col]
