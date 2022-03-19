@@ -203,8 +203,8 @@ class Feature_gen:
                     df.loc[i, col] = median
 
         cat_col = self.get_cat_feat_name(df)
-        other_col = [x for x in df.columns if x not in cat_col]
+        #other_col = [x for x in df.columns if x not in cat_col]
 
         df.fillna(0, inplace=True)
 
-        return df[other_col]
+        return df

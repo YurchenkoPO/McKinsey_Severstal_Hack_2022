@@ -121,7 +121,7 @@ def validate_threshold(model, X, target_col=TARGET_COL, create_new_clients=False
     plt.show()
     
 
-def make_report(model, X, target_col=TARGET_COL, threshold=BASIC_THRESHOLD, use_cross_val=False, create_new_clients=False, 
+def make_report(model, X, cols2drop, target_col=TARGET_COL, threshold=BASIC_THRESHOLD, use_cross_val=False, create_new_clients=False,
                 to_file=True, file_path=REPORT_FILE_PATH, comment='', need_val=False, to_plot=True, random_state=RANDOM_STATE,
                 suppress_prints=False):
     if not suppress_prints:
@@ -155,7 +155,7 @@ def make_report(model, X, target_col=TARGET_COL, threshold=BASIC_THRESHOLD, use_
         roc_auc_std = np.std(roc_list)
     else:
         # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, random_state=random_state)
-        X_train, X_test, y_train, y_test = data_split(X, target_col=target_col, create_new_clients=create_new_clients)
+        X_train, X_test, y_train, y_test = data_split(X, cols2drop=cols2drop, target_col=target_col, create_new_clients=create_new_clients)
         if need_val:
             X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=random_state)
         model, preds, probas, train_preds, train_probas = fit_predict(model, X_train, y_train, X_test, y_test, threshold=threshold,
@@ -198,7 +198,7 @@ def make_report_with_best_threshold(model, df, cols2drop=[], create_new_clients=
     print(f'Target = {target_col}')
     threshold_list = []
     for rs in np.arange(1, num_random_states + 1).astype(int):
-        _ = make_report(model, df, target_col=target_col, threshold=0.5, to_file=False, create_new_clients=create_new_clients, need_val=True,
+        _ = make_report(model, df, cols2drop=cols2drop, target_col=target_col, threshold=0.5, to_file=False, create_new_clients=create_new_clients, need_val=True,
                         to_plot=False, random_state=rs, suppress_prints=True)
 
         X_train, X_test, y_train, y_test = data_split(df, cols2drop=cols2drop, target_col=target_col, 
@@ -219,7 +219,7 @@ def make_report_with_best_threshold(model, df, cols2drop=[], create_new_clients=
         roc_t = roc.iloc[(roc.tf - 0).abs().argsort()[:1]]
         threshold_list.append(np.mean(list(roc_t["threshold"])))
 
-    make_report(model, df, target_col=target_col, threshold=np.mean(threshold_list), to_file=to_file, file_path=file_path, 
+    make_report(model, df, cols2drop=cols2drop, target_col=target_col, threshold=np.mean(threshold_list), to_file=to_file, file_path=file_path,
                 comment=comment, create_new_clients=create_new_clients, need_val=False)
 
 
