@@ -5,14 +5,15 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 plt.style.use('seaborn')
-import shap
+#import shap
 
 from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_score, RocCurveDisplay, accuracy_score, roc_curve, log_loss
 from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
 from sklearn.ensemble import RandomForestClassifier
 from catboost import Pool, CatBoostClassifier
-from hyperopt import hp
-from hyperopt import fmin, tpe, STATUS_OK, STATUS_FAIL, Trials
+from sklearn.calibration import CalibratedClassifierCV
+#from hyperopt import hp
+#from hyperopt import fmin, tpe, STATUS_OK, STATUS_FAIL, Trials
 
 TARGET_COL = 'binary_target'
 ALL_TARGET_COLS = ['binary_target', 'target_more30days', 'target_more90days']
@@ -54,15 +55,30 @@ def data_split(df, cols2drop=[], target_col=TARGET_COL, create_new_clients=False
     test = test.drop(columns=['year', 'Наименование ДП'] + ALL_TARGET_COLS + cols2drop)
     return train, test, y_train, y_test
 
+def calibrate_model(base_model, X_val, Y_val, calib_coeff):
+    sample_weights = [1 if x == 0 else calib_coeff for x in Y_val.values]
+    calib_model = CalibratedClassifierCV(base_estimator=base_model, method='sigmoid', cv=3)
+    calib_model.fit(X_val, Y_val, sample_weight=sample_weights)
 
-def fit_predict(model, X_train, y_train, X_test, y_test, threshold=BASIC_THRESHOLD, plot_roc_auc=False):
+    return calib_model
+
+
+def fit_predict(model, X_train, y_train, X_test, y_test, use_calib, calib_coeff, threshold=BASIC_THRESHOLD, plot_roc_auc=False):
+    print(f'Fitting model {model} with threshold = {round(threshold, 5)}...')
     if 'CatBoostClassifier' in  str(model.__class__()):
         if model.get_params()['use_best_model']:
             X_train_, X_val, y_train_, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=RANDOM_STATE)
             eval_set = Pool(X_val, y_val)
             model.fit(X_train_, y_train_, eval_set=eval_set)
+            if use_calib:
+                model = calibrate_model(model, X_train_, y_train_, calib_coeff)
+                print('MODEL HAS BEEN CALIBRATED!')
         else:
-            model.fit(X_train, y_train)
+            if use_calib:
+                model = calibrate_model(model, X_train, y_train, calib_coeff)
+                print('MODEL HAS BEEN CALIBRATED!')
+            else:
+                model.fit(X_train, y_train)
     else:
         model.fit(X_train, y_train)
     probas = model.predict_proba(X_test)[:, 1]
@@ -75,9 +91,7 @@ def fit_predict(model, X_train, y_train, X_test, y_test, threshold=BASIC_THRESHO
     train_preds[np.where(train_preds < threshold)] = 0
     train_preds[np.where(train_preds >= threshold)] = 1
     if plot_roc_auc:
-        fig, ax = plt.subplots()
-        disp1 = RocCurveDisplay.from_estimator(model, X_test, y_test, ax=ax, name='test')
-        disp2 = RocCurveDisplay.from_estimator(model, X_train, y_train, ax=ax, name='train')
+        disp = RocCurveDisplay.from_estimator(model, X_test, y_test)
         plt.show()
     return model, preds, probas, train_preds, train_probas
 
@@ -123,7 +137,7 @@ def validate_threshold(model, X, target_col=TARGET_COL, create_new_clients=False
     plt.show()
     
 
-def make_report(model, X, cols2drop, target_col=TARGET_COL, threshold=BASIC_THRESHOLD, use_cross_val=False, create_new_clients=False,
+def make_report(model, X, cols2drop, use_calib, calib_coeff, target_col=TARGET_COL, threshold=BASIC_THRESHOLD, use_cross_val=False, create_new_clients=False,
                 to_file=True, file_path=REPORT_FILE_PATH, comment='', need_val=False, to_plot=True, random_state=RANDOM_STATE,
                 suppress_prints=False):
     if not suppress_prints:
@@ -136,7 +150,7 @@ def make_report(model, X, cols2drop, target_col=TARGET_COL, threshold=BASIC_THRE
         for train_index, test_index in skf.split(X, y):
             X_train, X_test = X.iloc[train_index], X.iloc[test_index]
             y_train, y_test = y[train_index], y[test_index]
-            model, preds, probas, _, _ = fit_predict(model, X_train, y_train, X_test, y_test, threshold=threshold, plot_roc_auc=False)
+            model, preds, probas, _, _ = fit_predict(model, X_train, y_train, X_test, y_test, threshold=threshold, plot_roc_auc=False, use_calib=use_calib)
             f1, precision, recall, acc, roc_auc = make_scores(y_test, preds, probas=probas)
             f1_list.append(f1)
             precision_list.append(precision)
@@ -160,8 +174,7 @@ def make_report(model, X, cols2drop, target_col=TARGET_COL, threshold=BASIC_THRE
         X_train, X_test, y_train, y_test = data_split(X, cols2drop=cols2drop, target_col=target_col, create_new_clients=create_new_clients)
         if need_val:
             X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=random_state, stratify=y_train)
-        model, preds, probas, train_preds, train_probas = fit_predict(model, X_train, y_train, X_test, y_test, threshold=threshold,
-                                                                      plot_roc_auc=to_plot)
+        model, preds, probas, train_preds, train_probas = fit_predict(model, X_train, y_train, X_test, y_test, calib_coeff=calib_coeff, threshold=threshold, use_calib=use_calib, plot_roc_auc=to_plot)
         f1, precision, recall, acc, roc_auc = make_scores(y_test, preds, probas=probas)
         train_f1, train_precision, train_recall, train_acc, train_roc_auc = make_scores(y_train, train_preds, probas=train_probas)
         f1_std, precision_std, recall_std, acc_std, roc_auc_std = 0, 0, 0, 0, 0
@@ -192,18 +205,18 @@ def make_report(model, X, cols2drop, target_col=TARGET_COL, threshold=BASIC_THRE
             res.to_csv(file_path, mode='a', header=False, index=False)
         else:
             res.to_csv(file_path, index=False)
-    return roc_auc, f1, precision, recall, acc
+    return roc_auc, f1, precision, recall, acc, model
             
             
-def make_report_with_best_threshold(model, df, cols2drop=[], create_new_clients=False, 
+def make_report_with_best_threshold(model, df, calib_coeff=0, cols2drop=[], create_new_clients=False,
                                     to_file=True, file_path=REPORT_FILE_PATH, comment='', 
-                                    target_col=TARGET_COL, num_random_states=1):
+                                    target_col=TARGET_COL, num_random_states=1, use_calib=False):
     print(f'Target = {target_col}')
     threshold_list = []
     for rs in np.arange(1, 10 * num_random_states + 1, 10).astype(int):
-        _ = make_report(model, df, cols2drop=cols2drop, target_col=target_col, threshold=0.5, to_file=False,
+        _, _, _, _, _, model = make_report(model, df, calib_coeff=calib_coeff, cols2drop=cols2drop, target_col=target_col, threshold=0.5, to_file=False,
                         create_new_clients=create_new_clients, need_val=True,
-                        to_plot=False, random_state=rs, suppress_prints=True)
+                        to_plot=False, random_state=rs, suppress_prints=True, use_calib=use_calib)
 
         X_train, X_test, y_train, y_test = data_split(df, cols2drop=cols2drop, target_col=target_col, 
                                                       create_new_clients=create_new_clients, random_state=rs)
@@ -223,10 +236,11 @@ def make_report_with_best_threshold(model, df, cols2drop=[], create_new_clients=
         roc_t = roc.iloc[(roc.tf - 0).abs().argsort()[:1]]
         threshold_list.append(np.mean(list(roc_t["threshold"])))
 
-    roc_auc, f1, precision, recall, acc = make_report(model, df, cols2drop=cols2drop, target_col=target_col, threshold=np.mean(threshold_list),
+    roc_auc, f1, precision, recall, acc, model = make_report(model , df, calib_coeff=calib_coeff, use_calib=use_calib, cols2drop=cols2drop, target_col=target_col, threshold=np.mean(threshold_list),
                                                      to_file=to_file, file_path=file_path,
                                                      comment=comment, create_new_clients=create_new_clients, need_val=False)
-
+    if use_calib:
+        return probas
 
 def hyperopt_for_catboost(X, target_col=TARGET_COL):
     print(f'Target = {target_col}')
