@@ -5,15 +5,15 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 plt.style.use('seaborn')
-#import shap
+import shap
 
 from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_score, RocCurveDisplay, accuracy_score, roc_curve, log_loss
 from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
 from sklearn.ensemble import RandomForestClassifier
 from catboost import Pool, CatBoostClassifier
 from sklearn.calibration import CalibratedClassifierCV
-#from hyperopt import hp
-#from hyperopt import fmin, tpe, STATUS_OK, STATUS_FAIL, Trials
+from hyperopt import hp
+from hyperopt import fmin, tpe, STATUS_OK, STATUS_FAIL, Trials
 
 TARGET_COL = 'binary_target'
 ALL_TARGET_COLS = ['binary_target', 'target_more30days', 'target_more90days']
