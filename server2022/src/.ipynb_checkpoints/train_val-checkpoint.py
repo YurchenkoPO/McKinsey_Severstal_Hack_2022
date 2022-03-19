@@ -75,7 +75,9 @@ def fit_predict(model, X_train, y_train, X_test, y_test, threshold=BASIC_THRESHO
     train_preds[np.where(train_preds < threshold)] = 0
     train_preds[np.where(train_preds >= threshold)] = 1
     if plot_roc_auc:
-        disp = RocCurveDisplay.from_estimator(model, X_test, y_test)
+        fig, ax = plt.subplots()
+        disp1 = RocCurveDisplay.from_estimator(model, X_test, y_test, ax=ax, name='test')
+        disp2 = RocCurveDisplay.from_estimator(model, X_train, y_train, ax=ax, name='train')
         plt.show()
     return model, preds, probas, train_preds, train_probas
 
@@ -121,7 +123,7 @@ def validate_threshold(model, X, target_col=TARGET_COL, create_new_clients=False
     plt.show()
     
 
-def make_report(model, X, target_col=TARGET_COL, threshold=BASIC_THRESHOLD, use_cross_val=False, create_new_clients=False, 
+def make_report(model, X, cols2drop, target_col=TARGET_COL, threshold=BASIC_THRESHOLD, use_cross_val=False, create_new_clients=False,
                 to_file=True, file_path=REPORT_FILE_PATH, comment='', need_val=False, to_plot=True, random_state=RANDOM_STATE,
                 suppress_prints=False):
     if not suppress_prints:
@@ -155,9 +157,9 @@ def make_report(model, X, target_col=TARGET_COL, threshold=BASIC_THRESHOLD, use_
         roc_auc_std = np.std(roc_list)
     else:
         # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, random_state=random_state)
-        X_train, X_test, y_train, y_test = data_split(X, target_col=target_col, create_new_clients=create_new_clients)
+        X_train, X_test, y_train, y_test = data_split(X, cols2drop=cols2drop, target_col=target_col, create_new_clients=create_new_clients)
         if need_val:
-            X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=random_state)
+            X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=random_state, stratify=y_train)
         model, preds, probas, train_preds, train_probas = fit_predict(model, X_train, y_train, X_test, y_test, threshold=threshold,
                                                                       plot_roc_auc=to_plot)
         f1, precision, recall, acc, roc_auc = make_scores(y_test, preds, probas=probas)
@@ -194,11 +196,13 @@ def make_report(model, X, target_col=TARGET_COL, threshold=BASIC_THRESHOLD, use_
             
             
 def make_report_with_best_threshold(model, df, cols2drop=[], create_new_clients=False, 
-                                    to_file=True, file_path=REPORT_FILE_PATH, comment='', target_col=TARGET_COL, num_random_states=1):
+                                    to_file=True, file_path=REPORT_FILE_PATH, comment='', 
+                                    target_col=TARGET_COL, num_random_states=1):
     print(f'Target = {target_col}')
     threshold_list = []
-    for rs in np.arange(1, num_random_states + 1).astype(int):
-        _ = make_report(model, df, target_col=target_col, threshold=0.5, to_file=False, create_new_clients=create_new_clients, need_val=True,
+    for rs in np.arange(1, 10 * num_random_states + 1, 10).astype(int):
+        _ = make_report(model, df, cols2drop=cols2drop, target_col=target_col, threshold=0.5, to_file=False,
+                        create_new_clients=create_new_clients, need_val=True,
                         to_plot=False, random_state=rs, suppress_prints=True)
 
         X_train, X_test, y_train, y_test = data_split(df, cols2drop=cols2drop, target_col=target_col, 
@@ -219,8 +223,9 @@ def make_report_with_best_threshold(model, df, cols2drop=[], create_new_clients=
         roc_t = roc.iloc[(roc.tf - 0).abs().argsort()[:1]]
         threshold_list.append(np.mean(list(roc_t["threshold"])))
 
-    make_report(model, df, target_col=target_col, threshold=np.mean(threshold_list), to_file=to_file, file_path=file_path, 
-                comment=comment, create_new_clients=create_new_clients, need_val=False)
+    roc_auc, f1, precision, recall, acc = make_report(model, df, cols2drop=cols2drop, target_col=target_col, threshold=np.mean(threshold_list),
+                                                     to_file=to_file, file_path=file_path,
+                                                     comment=comment, create_new_clients=create_new_clients, need_val=False)
 
 
 def hyperopt_for_catboost(X, target_col=TARGET_COL):
