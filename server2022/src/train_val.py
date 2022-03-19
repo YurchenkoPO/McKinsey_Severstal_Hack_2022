@@ -13,6 +13,8 @@ from catboost import Pool, CatBoostClassifier
 from hyperopt import hp
 from hyperopt import fmin, tpe, STATUS_OK, STATUS_FAIL, Trials
 
+from sklearn.calibration import CalibratedClassifierCV
+
 TARGET_COL = 'binary_target'
 ALL_TARGET_COLS = ['binary_target', 'target_more30days', 'target_more90days']
 TARGET_DICT = {'1': 'binary_target', '2': 'target_more30days', '3': 'target_more90days'}
@@ -26,7 +28,7 @@ N_SPLITS = 5
 REPORT_FILE_PATH = '../reports/report.csv'
 
 
-def data_split(df, target_col=TARGET_COL, create_new_clients=False, new_clients_size=NEW_CLIENTS_SIZE):
+def data_split(df, cols2drop, target_col=TARGET_COL, create_new_clients=False, new_clients_size=NEW_CLIENTS_SIZE):
     if create_new_clients:
         all_clients = df['Наименование ДП'].unique()
         new_ids = all_clients.copy()
@@ -50,18 +52,29 @@ def data_split(df, target_col=TARGET_COL, create_new_clients=False, new_clients_
     
     y_train = train[target_col].astype(int)
     y_test = test[target_col].astype(int)
-    train = train.drop(columns=['year', 'Наименование ДП'] + ALL_TARGET_COLS)
-    test = test.drop(columns=['year', 'Наименование ДП'] + ALL_TARGET_COLS)
+    train = train.drop(columns=['year', 'Наименование ДП'] + ALL_TARGET_COLS + cols2drop)
+    test = test.drop(columns=['year', 'Наименование ДП'] + ALL_TARGET_COLS + cols2drop)
     return train, test, y_train, y_test
 
 
-def fit_predict(model, X_train, y_train, X_test, y_test, threshold=BASIC_threshold, plot_roc_auc=False):
+def calibrate_model(base_model, X_val, Y_val, calib_coeff=0.6):
+        sample_weights = [10 if x == 0 else 1 for x in Y_val.values]
+        calib_model = CalibratedClassifierCV(base_estimator=base_model, method='sigmoid', cv="prefit")
+        calib_model.fit(X_val, Y_val, sample_weight=sample_weights)
+
+        return calib_model
+
+
+def fit_predict(model, X_train, y_train, X_test, y_test, use_calib, threshold=BASIC_threshold, plot_roc_auc=False):
     print(f'Fitting model {model} with threshold = {round(threshold, 5)}...')
     if 'CatBoostClassifier' in  str(model.__class__()):
         if model.get_params()['use_best_model']:
             X_train_, X_val, y_train_, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=RANDOM_STATE)
             eval_set = Pool(X_val, y_val)
             model.fit(X_train_, y_train_, eval_set=eval_set)
+            if use_calib:
+                model = calibrate_model(model, X_val, y_val)
+                print('MODEL HAS BEEN CALIBRATED!')
         else:
             model.fit(X_train, y_train)
     else:
@@ -123,7 +136,7 @@ def validate_threshold(model, X, create_new_clients=False):
     plt.show()
     
 
-def make_report(model, X, target_col=TARGET_COL, threshold=BASIC_threshold, use_cross_val=False, create_new_clients=False, 
+def make_report(model, X, cols2drop, use_calib, target_col=TARGET_COL, threshold=BASIC_threshold, use_cross_val=False, create_new_clients=False, 
                 to_file=True, file_path=REPORT_FILE_PATH, comment='', need_val=False, to_plot=True):
     if use_cross_val:
         raise NotImplementedError('No need because test data is always 2021 and we can`t use it as train data')
@@ -132,7 +145,7 @@ def make_report(model, X, target_col=TARGET_COL, threshold=BASIC_threshold, use_
         for train_index, test_index in skf.split(X, y):
             X_train, X_test = X.iloc[train_index], X.iloc[test_index]
             y_train, y_test = y[train_index], y[test_index]
-            model, preds, probas, _, _ = fit_predict(model, X_train, y_train, X_test, y_test, threshold=threshold, plot_roc_auc=False)
+            model, preds, probas, _, _ = fit_predict(model, X_train, y_train, X_test, y_test, threshold=threshold, plot_roc_auc=False, use_calib=use_calib)
             f1, precision, recall, acc, roc_auc = make_scores(y_test, preds, probas=probas)
             f1_list.append(f1)
             precision_list.append(precision)
@@ -153,10 +166,10 @@ def make_report(model, X, target_col=TARGET_COL, threshold=BASIC_threshold, use_
         roc_auc_std = np.std(roc_list)
     else:
         # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE)
-        X_train, X_test, y_train, y_test = data_split(X, target_col=target_col, create_new_clients=create_new_clients)
+        X_train, X_test, y_train, y_test = data_split(X, cols2drop, target_col=target_col, create_new_clients=create_new_clients)
         if need_val:
             X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=RANDOM_STATE)
-        model, preds, probas, train_preds, train_probas = fit_predict(model, X_train, y_train, X_test, y_test, threshold=threshold, plot_roc_auc=to_plot)
+        model, preds, probas, train_preds, train_probas = fit_predict(model, X_train, y_train, X_test, y_test, use_calib=use_calib, threshold=threshold, plot_roc_auc=to_plot)
         f1, precision, recall, acc, roc_auc = make_scores(y_test, preds, probas=probas)
         train_f1, train_precision, train_recall, train_acc, train_roc_auc = make_scores(y_train, train_preds, probas=train_probas)
         f1_std, precision_std, recall_std, acc_std, roc_auc_std = 0, 0, 0, 0, 0
@@ -186,15 +199,15 @@ def make_report(model, X, target_col=TARGET_COL, threshold=BASIC_threshold, use_
             res.to_csv(file_path, index=False)
             
             
-def make_report_with_best_threshold(model, df, create_new_clients=False, 
-                                    to_file=True, file_path=REPORT_FILE_PATH, comment=''):
+def make_report_with_best_threshold(model, df, cols2drop=[], create_new_clients=False, 
+                                    to_file=True, file_path=REPORT_FILE_PATH, comment='', use_calib=False):
     
     print('Choose target: 1 - binary_target, 2 - target_more30days, 3 - target_more90days:')
     target_col = TARGET_DICT[input()]
     
-    make_report(model, df, target_col=target_col, threshold=0.5, to_file=False, create_new_clients=create_new_clients, need_val=True, to_plot=False)
+    make_report(model, df, cols2drop, target_col=target_col, threshold=0.5, to_file=False, create_new_clients=create_new_clients, need_val=True, to_plot=False, use_calib=use_calib)
 
-    X_train, X_test, y_train, y_test = data_split(df, target_col=target_col, create_new_clients=create_new_clients)
+    X_train, X_test, y_train, y_test = data_split(df, target_col=target_col, create_new_clients=create_new_clients,cols2drop=cols2drop)
     X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=RANDOM_STATE)
     probas = model.predict_proba(X_val)[:, 1]
     
@@ -210,8 +223,10 @@ def make_report_with_best_threshold(model, df, create_new_clients=False,
     )
     roc_t = roc.iloc[(roc.tf - 0).abs().argsort()[:1]]
 
-    make_report(model, df, target_col=target_col, threshold=np.mean(list(roc_t["threshold"])), to_file=to_file, file_path=file_path, 
+    make_report(model, df, target_col=target_col, threshold=np.mean(list(roc_t["threshold"])), to_file=to_file, file_path=file_path, use_calib=use_calib, cols2drop=cols2drop,
                 comment=comment, create_new_clients=create_new_clients, need_val=False)
+    
+    return probas
 
             
 def hyperopt_for_catboost(X):
