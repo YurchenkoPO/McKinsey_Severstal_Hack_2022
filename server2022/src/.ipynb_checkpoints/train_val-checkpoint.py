@@ -185,9 +185,9 @@ def make_report(model, X, cols2drop, target_col=TARGET_COL, threshold=BASIC_THRE
     if to_file:
         res = pd.DataFrame([[str(model.__class__()), model.get_params(), comment, round(threshold, 6), round(roc_auc, 3),
                              round(f1, 3), round(precision, 3), round(recall, 3), round(acc, 3), use_cross_val, 
-                             round(roc_auc_std, 3), round(f1_std, 3), round(precision_std, 3), round(recall_std, 3), round(acc_std, 3)]], 
+                             round(train_roc_auc, 3), round(train_f1, 3), round(train_precision, 3), round(train_recall, 3), round(train_acc, 3)]], 
                            columns=['model', 'params', 'comment', 'threshold', 'roc_auc', 'f1', 'precision', 'recall', 'acc', 'use_cross_val', 
-                                    'roc_auc_std', 'f1_std', 'precision_std', 'recall_std', 'acc_std'])
+                                    'roc_auc_train', 'f1_train', 'precision_train', 'recall_train', 'acc_train'])
         if os.path.exists(file_path):
             res.to_csv(file_path, mode='a', header=False, index=False)
         else:
