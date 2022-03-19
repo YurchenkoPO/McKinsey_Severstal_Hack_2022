@@ -207,7 +207,7 @@ def make_report_with_best_threshold(model, df, cols2drop=[], create_new_clients=
 
         X_train, X_test, y_train, y_test = data_split(df, cols2drop=cols2drop, target_col=target_col, 
                                                       create_new_clients=create_new_clients, random_state=rs)
-        X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=rs)
+        X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=rs, stratify=y_train)
         probas = model.predict_proba(X_val)[:, 1]
 
         fpr, tpr, threshold = roc_curve(y_val, probas)
