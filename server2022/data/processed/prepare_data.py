@@ -625,7 +625,7 @@ def drop_rare_facts(df, min_occurrence=10):
     df_ = df[df['year'] == '2021']
     counts = {}
     n_companies = len(df_)
-    assert n_companies == 325
+    # assert n_companies == 325
     
     for col in df_.columns.tolist():
         if 'Факт' not in col:
