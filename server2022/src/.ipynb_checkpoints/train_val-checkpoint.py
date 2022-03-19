@@ -1,4 +1,5 @@
 import os
+import sys
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -15,22 +16,21 @@ from hyperopt import fmin, tpe, STATUS_OK, STATUS_FAIL, Trials
 
 TARGET_COL = 'binary_target'
 ALL_TARGET_COLS = ['binary_target', 'target_more30days', 'target_more90days']
-TARGET_DICT = {'1': 'binary_target', '2': 'target_more30days', '3': 'target_more90days'}
 
 RANDOM_STATE = 1
 TEST_SIZE = 0.3
 NEW_CLIENTS_SIZE = 0.4
-BASIC_threshold = 0.6
+BASIC_THRESHOLD = 0.6
 N_SPLITS = 5
 
 REPORT_FILE_PATH = '../reports/report.csv'
 
 
-def data_split(df, target_col=TARGET_COL, create_new_clients=False, new_clients_size=NEW_CLIENTS_SIZE):
+def data_split(df, cols2drop=[], target_col=TARGET_COL, create_new_clients=False, new_clients_size=NEW_CLIENTS_SIZE, random_state=RANDOM_STATE):
     if create_new_clients:
         all_clients = df['Наименование ДП'].unique()
         new_ids = all_clients.copy()
-        np.random.seed(RANDOM_STATE)
+        np.random.seed(random_state)
         np.random.shuffle(new_ids)
         new_ids = new_ids[:int(len(all_clients) * new_clients_size)]
         if '2019' in df.year.unique():
@@ -50,13 +50,12 @@ def data_split(df, target_col=TARGET_COL, create_new_clients=False, new_clients_
     
     y_train = train[target_col].astype(int)
     y_test = test[target_col].astype(int)
-    train = train.drop(columns=['year', 'Наименование ДП'] + ALL_TARGET_COLS)
-    test = test.drop(columns=['year', 'Наименование ДП'] + ALL_TARGET_COLS)
+    train = train.drop(columns=['year', 'Наименование ДП'] + ALL_TARGET_COLS + cols2drop)
+    test = test.drop(columns=['year', 'Наименование ДП'] + ALL_TARGET_COLS + cols2drop)
     return train, test, y_train, y_test
 
 
-def fit_predict(model, X_train, y_train, X_test, y_test, threshold=BASIC_threshold, plot_roc_auc=False):
-    print(f'Fitting model {model} with threshold = {round(threshold, 5)}...')
+def fit_predict(model, X_train, y_train, X_test, y_test, threshold=BASIC_THRESHOLD, plot_roc_auc=False):
     if 'CatBoostClassifier' in  str(model.__class__()):
         if model.get_params()['use_best_model']:
             X_train_, X_val, y_train_, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=RANDOM_STATE)
@@ -94,15 +93,14 @@ def make_scores(y_test, preds, probas=None, use_probas=True):
     return f1, precision, recall, acc, roc_auc
 
 
-def validate_threshold(model, X, create_new_clients=False):
-    print('Choose target: 1 - binary_target, 2 - target_more30days, 3 - target_more90days:')
-    target_col = TARGET_DICT[input()]
+def validate_threshold(model, X, target_col=TARGET_COL, create_new_clients=False):
+    print(f'Target = {target_col}')
     
     # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE)
     X_train, X_test, y_train, y_test = data_split(X, target_col=target_col, create_new_clients=create_new_clients)
     threshold_list = np.arange(0.1, 1, 0.005)
     f1_list, precision_list, recall_list, acc_list = [], [], [], []
-    model, preds, probas, _, _ = fit_predict(model, X_train, y_train, X_test, y_test, threshold=BASIC_threshold)
+    model, preds, probas, _, _ = fit_predict(model, X_train, y_train, X_test, y_test, threshold=BASIC_THRESHOLD)
     for threshold in threshold_list:
         preds = probas.copy()
         preds[np.where(preds < threshold)] = 0
@@ -123,11 +121,15 @@ def validate_threshold(model, X, create_new_clients=False):
     plt.show()
     
 
-def make_report(model, X, target_col=TARGET_COL, threshold=BASIC_threshold, use_cross_val=False, create_new_clients=False, 
-                to_file=True, file_path=REPORT_FILE_PATH, comment='', need_val=False, to_plot=True):
+def make_report(model, X, target_col=TARGET_COL, threshold=BASIC_THRESHOLD, use_cross_val=False, create_new_clients=False, 
+                to_file=True, file_path=REPORT_FILE_PATH, comment='', need_val=False, to_plot=True, random_state=RANDOM_STATE,
+                suppress_prints=False):
+    if not suppress_prints:
+        print(f'Fitting model {model} with threshold = {round(threshold, 5)}...')
+        
     if use_cross_val:
         raise NotImplementedError('No need because test data is always 2021 and we can`t use it as train data')
-        skf = StratifiedKFold(n_splits=N_SPLITS, random_state=RANDOM_STATE, shuffle=True)
+        skf = StratifiedKFold(n_splits=N_SPLITS, random_state=random_state, shuffle=True)
         f1_list, precision_list, recall_list, acc_list, roc_list = [], [], [], [], []
         for train_index, test_index in skf.split(X, y):
             X_train, X_test = X.iloc[train_index], X.iloc[test_index]
@@ -152,11 +154,12 @@ def make_report(model, X, target_col=TARGET_COL, threshold=BASIC_threshold, use_
         acc_std = np.std(acc_list)
         roc_auc_std = np.std(roc_list)
     else:
-        # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE)
+        # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, random_state=random_state)
         X_train, X_test, y_train, y_test = data_split(X, target_col=target_col, create_new_clients=create_new_clients)
         if need_val:
-            X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=RANDOM_STATE)
-        model, preds, probas, train_preds, train_probas = fit_predict(model, X_train, y_train, X_test, y_test, threshold=threshold, plot_roc_auc=to_plot)
+            X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=random_state)
+        model, preds, probas, train_preds, train_probas = fit_predict(model, X_train, y_train, X_test, y_test, threshold=threshold,
+                                                                      plot_roc_auc=to_plot)
         f1, precision, recall, acc, roc_auc = make_scores(y_test, preds, probas=probas)
         train_f1, train_precision, train_recall, train_acc, train_roc_auc = make_scores(y_train, train_preds, probas=train_probas)
         f1_std, precision_std, recall_std, acc_std, roc_auc_std = 0, 0, 0, 0, 0
@@ -171,9 +174,12 @@ def make_report(model, X, target_col=TARGET_COL, threshold=BASIC_threshold, use_
                 plt.show()
             except:
                 pass
+            
     
-    print(f'\nTRAIN: F1 = {round(train_f1, 3)}, Precision = {round(train_precision, 3)}, Recall = {round(train_recall, 3)}, Accuracy = {round(train_acc, 3)}, ROC_AUC = {round(train_roc_auc, 3)}')
-    print('\033[92m' + f'TEST: F1 = {round(f1, 3)}, Precision = {round(precision, 3)}, Recall = {round(recall, 3)}, Accuracy = {round(acc, 3)}, ROC_AUC = {round(roc_auc, 3)}' + '\033[0m' + '\n')
+    if not suppress_prints:
+        print(f'\nTRAIN: F1 = {round(train_f1, 3)}, Precision = {round(train_precision, 3)}, Recall = {round(train_recall, 3)}, Accuracy = {round(train_acc, 3)}, ROC_AUC = {round(train_roc_auc, 3)}')
+        print('\033[92m' + f'TEST: F1 = {round(f1, 3)}, Precision = {round(precision, 3)}, Recall = {round(recall, 3)}, Accuracy = {round(acc, 3)}, ROC_AUC = {round(roc_auc, 3)}' + '\033[0m' + '\n')
+    
     if to_file:
         res = pd.DataFrame([[str(model.__class__()), model.get_params(), comment, round(threshold, 6), round(roc_auc, 3),
                              round(f1, 3), round(precision, 3), round(recall, 3), round(acc, 3), use_cross_val, 
@@ -184,39 +190,41 @@ def make_report(model, X, target_col=TARGET_COL, threshold=BASIC_threshold, use_
             res.to_csv(file_path, mode='a', header=False, index=False)
         else:
             res.to_csv(file_path, index=False)
+    return roc_auc, f1, precision, recall, acc
             
             
-def make_report_with_best_threshold(model, df, create_new_clients=False, 
-                                    to_file=True, file_path=REPORT_FILE_PATH, comment=''):
-    
-    print('Choose target: 1 - binary_target, 2 - target_more30days, 3 - target_more90days:')
-    target_col = TARGET_DICT[input()]
-    
-    make_report(model, df, target_col=target_col, threshold=0.5, to_file=False, create_new_clients=create_new_clients, need_val=True, to_plot=False)
+def make_report_with_best_threshold(model, df, cols2drop=[], create_new_clients=False, 
+                                    to_file=True, file_path=REPORT_FILE_PATH, comment='', target_col=TARGET_COL, num_random_states=1):
+    print(f'Target = {target_col}')
+    threshold_list = []
+    for rs in np.arange(1, num_random_states + 1).astype(int):
+        _ = make_report(model, df, target_col=target_col, threshold=0.5, to_file=False, create_new_clients=create_new_clients, need_val=True,
+                        to_plot=False, random_state=rs, suppress_prints=True)
 
-    X_train, X_test, y_train, y_test = data_split(df, target_col=target_col, create_new_clients=create_new_clients)
-    X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=RANDOM_STATE)
-    probas = model.predict_proba(X_val)[:, 1]
-    
-    fpr, tpr, threshold = roc_curve(y_val, probas)
-    i = np.arange(len(tpr))
-    roc = pd.DataFrame(
-        {
-            "tf": pd.Series(tpr - (1 - fpr), index=i),
-            "tpr": pd.Series(tpr, index=i),
-            "fpr": pd.Series(fpr, index=i),
-            "threshold": pd.Series(threshold, index=i),
-        }
-    )
-    roc_t = roc.iloc[(roc.tf - 0).abs().argsort()[:1]]
+        X_train, X_test, y_train, y_test = data_split(df, cols2drop=cols2drop, target_col=target_col, 
+                                                      create_new_clients=create_new_clients, random_state=rs)
+        X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=rs)
+        probas = model.predict_proba(X_val)[:, 1]
 
-    make_report(model, df, target_col=target_col, threshold=np.mean(list(roc_t["threshold"])), to_file=to_file, file_path=file_path, 
+        fpr, tpr, threshold = roc_curve(y_val, probas)
+        i = np.arange(len(tpr))
+        roc = pd.DataFrame(
+            {
+                "tf": pd.Series(tpr - (1 - fpr), index=i),
+                "tpr": pd.Series(tpr, index=i),
+                "fpr": pd.Series(fpr, index=i),
+                "threshold": pd.Series(threshold, index=i),
+            }
+        )
+        roc_t = roc.iloc[(roc.tf - 0).abs().argsort()[:1]]
+        threshold_list.append(np.mean(list(roc_t["threshold"])))
+
+    make_report(model, df, target_col=target_col, threshold=np.mean(threshold_list), to_file=to_file, file_path=file_path, 
                 comment=comment, create_new_clients=create_new_clients, need_val=False)
 
-            
-def hyperopt_for_catboost(X):
-    print('Choose target: 1 - binary_target, 2 - target_more30days, 3 - target_more90days:')
-    target_col = TARGET_DICT[input()]
+
+def hyperopt_for_catboost(X, target_col=TARGET_COL):
+    print(f'Target = {target_col}')
     
     X_train, X_test, y_train, y_test = data_split(X, target_col=target_col)
 
