@@ -621,9 +621,39 @@ def normalize_feat(df, col_name):
     return df
 
 
+def drop_rare_facts(df, min_occurrence=10):
+    df_ = df[df['year'] == '2021']
+    counts = {}
+    n_companies = len(df_)
+    assert n_companies == 325
+    
+    for col in df_.columns.tolist():
+        if 'Факт' not in col:
+            continue
+        counts[col] = n_companies - df_[col].isna().sum()
+
+    df = df.drop(columns=[x for x,v in counts.items() if v < min_occurrence])
+    return df
+
+def convert_facts_to_boolean(df):
+    df = df.copy()
+    for col in df.columns.tolist():
+        if 'Факт' not in col:
+            continue
+            
+        df.loc[(df['year'] == '2020') & (df[col] != 'Х') & (df[col] != 'Н/Д'), col] = 1
+        df.loc[(df['year'] == '2020') & (df[col] == 'Х'), col] = 0
+        df.loc[(df['year'] == '2020') & (df[col] == 'Н/Д'), col] = 0
+
+        df.loc[(df['year'] == '2021') & (~df[col].isna()), col] = 1
+        df.loc[(df['year'] == '2021') & df[col].isna(), col] = 0
+        
+    return df
+
+
 def create_df_1year_known(drop_unnecessary=True, drop_extra_factors=True, drop_2021_unique_feats=True, 
                           drop_5y_ago=True, factors_2020=False, add_growth=True, count_log_fin_vals=True,
-                          normalize_fin_columns=False, drop_zeros=True):
+                          normalize_fin_columns=False, drop_zeros=False, min_fact_occurrence=10, facts_to_bool=True):
     
     df_2020 = create_df_1year_known_2020(drop_unnecessary=drop_unnecessary, drop_extra_factors=drop_extra_factors,
                                          drop_zeros=drop_zeros)
@@ -673,5 +703,10 @@ def create_df_1year_known(drop_unnecessary=True, drop_extra_factors=True, drop_2
             result = normalize_feat(result.copy(), col_name)
             result.drop(columns=[col_name, ], inplace=True)
             result.rename(columns={'Normalized ' + col_name: col_name}, inplace=True)
+
+    if min_fact_occurrence:
+        result = drop_rare_facts(result, min_occurrence=min_fact_occurrence)
+    if facts_to_bool:
+        result = convert_facts_to_boolean(result)
 
     return result
