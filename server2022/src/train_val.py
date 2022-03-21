@@ -64,7 +64,6 @@ def calibrate_model(base_model, X_val, Y_val, calib_coeff):
 
 
 def fit_predict(model, X_train, y_train, X_test, y_test, use_calib, calib_coeff, threshold=BASIC_THRESHOLD, plot_roc_auc=False):
-    print(f'Fitting model {model} with threshold = {round(threshold, 5)}...')
     if 'CatBoostClassifier' in  str(model.__class__()):
         if model.get_params()['use_best_model']:
             X_train_, X_val, y_train_, y_val = train_test_split(X_train, y_train, test_size=TEST_SIZE, random_state=RANDOM_STATE)
@@ -91,7 +90,9 @@ def fit_predict(model, X_train, y_train, X_test, y_test, use_calib, calib_coeff,
     train_preds[np.where(train_preds < threshold)] = 0
     train_preds[np.where(train_preds >= threshold)] = 1
     if plot_roc_auc:
-        disp = RocCurveDisplay.from_estimator(model, X_test, y_test)
+        fig, ax = plt.subplots()
+        disp = RocCurveDisplay.from_estimator(model, X_test, y_test, ax=ax, name='test')
+        disp = RocCurveDisplay.from_estimator(model, X_train, y_train, ax=ax, name='train')
         plt.show()
     return model, preds, probas, train_preds, train_probas
 
